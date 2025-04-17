@@ -7,8 +7,10 @@ import {
     Timestamp,
     DocumentData,
     QueryDocumentSnapshot,
+    getDocs,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import { toast } from "sonner";
 
 // Base interface for all error types
 export interface BaseErrorData {
@@ -114,10 +116,32 @@ export const ErrorService = {
             },
             (error) => {
                 console.error(`Error subscribing to ${category}:`, error);
+                toast.error(`Failed to load ${category.replace("_", " ")}`);
                 callback([]);
             },
         );
 
         return unsubscribe;
+    },
+
+    // Get all errors for a category without limit
+    async getAllErrors(category: ErrorCategory): Promise<BaseErrorData[]> {
+        try {
+            // Create a query against the errors collection, ordered by timestamp
+            const errorsRef = collection(db, "logs", category, "errors");
+            const q = query(errorsRef, orderBy("timestamp", "desc"));
+
+            // Get all documents
+            const querySnapshot = await getDocs(q);
+
+            // Use the same conversion function as the subscription method
+            const errors = querySnapshot.docs.map(convertDocToError);
+
+            return errors;
+        } catch (error) {
+            console.error(`Error fetching all ${category}:`, error);
+            toast.error(`Failed to load all ${category.replace("_", " ")}`);
+            return [];
+        }
     },
 };

@@ -43,6 +43,10 @@ import {
     TrendingUp,
     ListFilter,
     Calendar,
+    LineChart,
+    PieChart,
+    BarChart,
+    Activity,
 } from "lucide-react";
 import { Button } from "@/registry/new-york-v4/ui/button";
 import { Badge } from "@/registry/new-york-v4/ui/badge";
@@ -69,8 +73,15 @@ import {
     ErrorCategory,
     BaseErrorData,
 } from "@/lib/error-service";
-import { formatDistanceToNow, subDays, format } from "date-fns";
-import { doc, updateDoc } from "firebase/firestore";
+import { formatDistanceToNow, subDays, format, subMonths } from "date-fns";
+import {
+    doc,
+    updateDoc,
+    collection,
+    query,
+    orderBy,
+    getDocs,
+} from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { toast } from "sonner";
 
@@ -95,6 +106,46 @@ interface ErrorStatistics {
     avgResolutionTime?: number; // in hours (for resolved errors)
 }
 
+// All time statistics interface that combines data from all categories
+interface AllTimeStatistics {
+    totalErrors: number;
+    byCategoryCount: {
+        [key in ErrorCategory]: number;
+    };
+    byCategoryAndStatus: {
+        [key in ErrorCategory]: {
+            pending: number;
+            in_progress: number;
+            resolved: number;
+            failure: number;
+            other: number;
+        };
+    };
+    mostCommonErrorTypes: {
+        type: string;
+        count: number;
+        category: ErrorCategory;
+    }[];
+    monthlyTrend: {
+        month: string;
+        user_errors: number;
+        house_user_errors: number;
+        general_errors: number;
+        authentication_errors: number;
+    }[];
+    avgResolutionTimeByCategory: {
+        [key in ErrorCategory]: number | null;
+    };
+    errorDistributionByDay: {
+        dayOfWeek: string;
+        count: number;
+    }[];
+    resolvedVsUnresolved: {
+        resolved: number;
+        unresolved: number;
+    };
+}
+
 type SortDirection = "asc" | "desc";
 type SortField = "errorType" | "errorMessage" | "status" | "timestamp";
 type TabView = "list" | "statistics";
@@ -106,6 +157,13 @@ export default function ErrorsPage() {
     const [activeCategory, setActiveCategory] =
         useState<ErrorCategory>("user_errors");
     const [activeView, setActiveView] = useState<TabView>("list");
+
+    // All Time Statistics states
+    const [allTimeStatsDialogOpen, setAllTimeStatsDialogOpen] = useState(false);
+    const [allTimeStats, setAllTimeStats] = useState<AllTimeStatistics | null>(
+        null,
+    );
+    const [loadingAllTimeStats, setLoadingAllTimeStats] = useState(false);
 
     // State for each error category
     const [userErrors, setUserErrors] = useState<BaseErrorData[]>([]);
@@ -441,9 +499,23 @@ export default function ErrorsPage() {
             // Track for trend
             try {
                 if (err.timestamp) {
-                    const errDate = err.timestamp.toDate
-                        ? err.timestamp.toDate()
-                        : new Date(err.timestamp.toDate());
+                    // Ensure we handle timestamp properly
+                    let errDate: Date;
+                    if (err.timestamp.toDate) {
+                        errDate = err.timestamp.toDate();
+                    } else if (
+                        typeof err.timestamp === "number" ||
+                        typeof err.timestamp === "string"
+                    ) {
+                        errDate = new Date(err.timestamp);
+                    } else {
+                        console.error(
+                            "Could not parse timestamp format:",
+                            err.timestamp,
+                        );
+                        errDate = new Date();
+                    }
+
                     // Only count errors from the last 7 days
                     if (errDate >= subDays(today, 7)) {
                         const dateStr = format(errDate, "MM-dd");
@@ -462,12 +534,25 @@ export default function ErrorsPage() {
                     ) {
                         const createdAt = err.timestamp.toDate
                             ? err.timestamp.toDate()
-                            : new Date(err.timestamp.toDate());
+                            : new Date();
                         const resolvedAt = (err as any).resolvedAt;
-                        // Convert Firebase Timestamp to Date if needed
-                        const resolvedDate = resolvedAt.toDate
-                            ? resolvedAt.toDate()
-                            : new Date(resolvedAt);
+
+                        // Handle resolvedAt timestamp properly
+                        let resolvedDate: Date;
+                        if (resolvedAt.toDate) {
+                            resolvedDate = resolvedAt.toDate();
+                        } else if (
+                            typeof resolvedAt === "number" ||
+                            typeof resolvedAt === "string"
+                        ) {
+                            resolvedDate = new Date(resolvedAt);
+                        } else {
+                            console.error(
+                                "Could not parse resolvedAt timestamp format:",
+                                resolvedAt,
+                            );
+                            resolvedDate = new Date();
+                        }
 
                         const diffInHours =
                             (resolvedDate.getTime() - createdAt.getTime()) /
@@ -505,21 +590,350 @@ export default function ErrorsPage() {
         };
     };
 
+    // Calculate combined statistics across all categories
+    const calculateAllTimeStatistics = (): AllTimeStatistics => {
+        setLoadingAllTimeStats(true);
+
+        // Combined data structure
+        const allTimeStats: AllTimeStatistics = {
+            totalErrors: 0,
+            byCategoryCount: {
+                user_errors: 0,
+                house_user_errors: 0,
+                general_errors: 0,
+                authentication_errors: 0,
+            },
+            byCategoryAndStatus: {
+                user_errors: {
+                    pending: 0,
+                    in_progress: 0,
+                    resolved: 0,
+                    failure: 0,
+                    other: 0,
+                },
+                house_user_errors: {
+                    pending: 0,
+                    in_progress: 0,
+                    resolved: 0,
+                    failure: 0,
+                    other: 0,
+                },
+                general_errors: {
+                    pending: 0,
+                    in_progress: 0,
+                    resolved: 0,
+                    failure: 0,
+                    other: 0,
+                },
+                authentication_errors: {
+                    pending: 0,
+                    in_progress: 0,
+                    resolved: 0,
+                    failure: 0,
+                    other: 0,
+                },
+            },
+            mostCommonErrorTypes: [],
+            monthlyTrend: [],
+            avgResolutionTimeByCategory: {
+                user_errors: null,
+                house_user_errors: null,
+                general_errors: null,
+                authentication_errors: null,
+            },
+            errorDistributionByDay: [
+                { dayOfWeek: "Sun", count: 0 },
+                { dayOfWeek: "Mon", count: 0 },
+                { dayOfWeek: "Tue", count: 0 },
+                { dayOfWeek: "Wed", count: 0 },
+                { dayOfWeek: "Thu", count: 0 },
+                { dayOfWeek: "Fri", count: 0 },
+                { dayOfWeek: "Sat", count: 0 },
+            ],
+            resolvedVsUnresolved: {
+                resolved: 0,
+                unresolved: 0,
+            },
+        };
+
+        // Initialize monthly trend data for the last 6 months
+        const today = new Date();
+        const months = [];
+        for (let i = 5; i >= 0; i--) {
+            const month = subMonths(today, i);
+            const monthKey = format(month, "MMM yyyy");
+            months.push(monthKey);
+            allTimeStats.monthlyTrend.push({
+                month: monthKey,
+                user_errors: 0,
+                house_user_errors: 0,
+                general_errors: 0,
+                authentication_errors: 0,
+            });
+        }
+
+        // Error type counter across all categories
+        const allErrorTypes = new Map<
+            string,
+            { count: number; category: ErrorCategory }
+        >();
+
+        // Define all categories we want to process
+        const categories: ErrorCategory[] = [
+            "user_errors",
+            "house_user_errors",
+            "general_errors",
+            "authentication_errors",
+        ];
+
+        // Helper function to fetch errors directly using Firestore
+        const getErrorsForCategory = async (
+            category: ErrorCategory,
+        ): Promise<BaseErrorData[]> => {
+            try {
+                // Create a query against the errors collection, ordered by timestamp
+                const errorsRef = collection(db, "logs", category, "errors");
+                const q = query(errorsRef, orderBy("timestamp", "desc"));
+
+                // Get all documents
+                const querySnapshot = await getDocs(q);
+
+                // Convert documents to BaseErrorData objects
+                const errors = querySnapshot.docs.map((doc) => {
+                    const data = doc.data();
+                    return {
+                        id: doc.id,
+                        additionalData: data.additionalData || {},
+                        deviceInfo: data.deviceInfo || "N/A",
+                        errorMessage: data.errorMessage || "",
+                        errorType: data.errorType || "",
+                        stackTrace: data.stackTrace || "",
+                        status: data.status || "Unknown",
+                        timestamp: data.timestamp || null,
+                        ...data,
+                    } as BaseErrorData;
+                });
+
+                return errors;
+            } catch (error) {
+                console.error(`Error fetching all ${category}:`, error);
+                toast.error(`Failed to load ${category.replace("_", " ")}`);
+                return [];
+            }
+        };
+
+        // Use Promise.all to fetch all data from all categories
+        const fetchAllData = async () => {
+            try {
+                const categoryResults = await Promise.all(
+                    categories.map((category) =>
+                        getErrorsForCategory(category),
+                    ),
+                );
+
+                // Process each category's data
+                categoryResults.forEach(
+                    (data: BaseErrorData[], index: number) => {
+                        const category = categories[index];
+
+                        // Count total errors per category
+                        allTimeStats.byCategoryCount[category] = data.length;
+                        allTimeStats.totalErrors += data.length;
+
+                        // Resolution time tracking per category
+                        let totalResolutionTime = 0;
+                        let resolvedCount = 0;
+
+                        // Process each error
+                        data.forEach((err: BaseErrorData) => {
+                            // Count by status
+                            const status = err.status.toLowerCase();
+                            if (status === "pending") {
+                                allTimeStats.byCategoryAndStatus[category]
+                                    .pending++;
+                                allTimeStats.resolvedVsUnresolved.unresolved++;
+                            } else if (status === "in_progress") {
+                                allTimeStats.byCategoryAndStatus[category]
+                                    .in_progress++;
+                                allTimeStats.resolvedVsUnresolved.unresolved++;
+                            } else if (
+                                status === "resolved" ||
+                                status === "solved"
+                            ) {
+                                allTimeStats.byCategoryAndStatus[category]
+                                    .resolved++;
+                                allTimeStats.resolvedVsUnresolved.resolved++;
+                            } else if (status === "failure") {
+                                allTimeStats.byCategoryAndStatus[category]
+                                    .failure++;
+                                allTimeStats.resolvedVsUnresolved.unresolved++;
+                            } else {
+                                allTimeStats.byCategoryAndStatus[category]
+                                    .other++;
+                                allTimeStats.resolvedVsUnresolved.unresolved++;
+                            }
+
+                            // Collect error types
+                            const errorType = err.errorType || "Unknown";
+                            const current = allErrorTypes.get(errorType) || {
+                                count: 0,
+                                category,
+                            };
+                            allErrorTypes.set(errorType, {
+                                count: current.count + 1,
+                                category,
+                            });
+
+                            // Process timestamps for trends and day distribution
+                            try {
+                                if (err.timestamp) {
+                                    // Ensure we handle timestamp properly
+                                    let date: Date;
+                                    if (err.timestamp.toDate) {
+                                        date = err.timestamp.toDate();
+                                    } else if (
+                                        typeof err.timestamp === "number" ||
+                                        typeof err.timestamp === "string"
+                                    ) {
+                                        date = new Date(err.timestamp);
+                                    } else {
+                                        // If we can't determine the date format, use current date as fallback
+                                        console.error(
+                                            "Could not parse timestamp format:",
+                                            err.timestamp,
+                                        );
+                                        date = new Date();
+                                    }
+
+                                    // Monthly trend
+                                    const monthKey = format(date, "MMM yyyy");
+                                    const monthIndex =
+                                        allTimeStats.monthlyTrend.findIndex(
+                                            (m) => m.month === monthKey,
+                                        );
+                                    if (monthIndex >= 0) {
+                                        allTimeStats.monthlyTrend[monthIndex][
+                                            category
+                                        ]++;
+                                    }
+
+                                    // Day of week distribution
+                                    const dayOfWeek = date.getDay(); // 0 for Sunday, 6 for Saturday
+                                    allTimeStats.errorDistributionByDay[
+                                        dayOfWeek
+                                    ].count++;
+
+                                    // Resolution time calculation
+                                    if (
+                                        (status === "resolved" ||
+                                            status === "solved") &&
+                                        (err as any).resolvedAt
+                                    ) {
+                                        const resolvedAt = (err as any)
+                                            .resolvedAt;
+                                        // Handle resolvedAt timestamp similarly
+                                        let resolvedDate: Date;
+                                        if (resolvedAt.toDate) {
+                                            resolvedDate = resolvedAt.toDate();
+                                        } else if (
+                                            typeof resolvedAt === "number" ||
+                                            typeof resolvedAt === "string"
+                                        ) {
+                                            resolvedDate = new Date(resolvedAt);
+                                        } else {
+                                            // Use current date as fallback if format unknown
+                                            console.error(
+                                                "Could not parse resolvedAt timestamp format:",
+                                                resolvedAt,
+                                            );
+                                            resolvedDate = new Date();
+                                        }
+
+                                        const diffInHours =
+                                            (resolvedDate.getTime() -
+                                                date.getTime()) /
+                                            (1000 * 60 * 60);
+                                        totalResolutionTime += diffInHours;
+                                        resolvedCount++;
+                                    }
+                                }
+                            } catch (e) {
+                                console.error(
+                                    `Error processing date for ${category}:`,
+                                    e,
+                                );
+                            }
+                        });
+
+                        // Calculate average resolution time for this category
+                        if (resolvedCount > 0) {
+                            allTimeStats.avgResolutionTimeByCategory[category] =
+                                totalResolutionTime / resolvedCount;
+                        }
+                    },
+                );
+
+                // Convert error types to sorted array
+                allTimeStats.mostCommonErrorTypes = Array.from(
+                    allErrorTypes.entries(),
+                )
+                    .map(([type, { count, category }]) => ({
+                        type,
+                        count,
+                        category,
+                    }))
+                    .sort((a, b) => b.count - a.count)
+                    .slice(0, 10);
+
+                // Set the state with processed data
+                setAllTimeStats(allTimeStats);
+                setLoadingAllTimeStats(false);
+            } catch (error) {
+                console.error("Error fetching all-time statistics:", error);
+                toast.error("Failed to load all-time statistics");
+                setLoadingAllTimeStats(false);
+            }
+        };
+
+        // Start the data fetching process
+        fetchAllData();
+
+        // Return empty stats initially, will be updated by Promise
+        return allTimeStats;
+    };
+
+    // Handle opening all time statistics dialog
+    const handleOpenAllTimeStats = () => {
+        setAllTimeStatsDialogOpen(true);
+        setAllTimeStats(null); // Clear any previous data
+        calculateAllTimeStatistics();
+    };
+
     return (
         <div className="container mx-auto p-6">
             <div className="flex justify-between items-center mb-6">
                 <h1 className="text-3xl font-bold">Error Logs</h1>
-                <Button
-                    variant="outline"
-                    onClick={handleRefresh}
-                    disabled={refreshing}
-                    className="flex items-center gap-2"
-                >
-                    <RefreshCw
-                        className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`}
-                    />
-                    {refreshing ? "Refreshing..." : "Refresh Data"}
-                </Button>
+                <div className="flex gap-2">
+                    <Button
+                        variant="default"
+                        onClick={handleOpenAllTimeStats}
+                        className="flex items-center gap-2 bg-[#0091D5] hover:bg-[#007bb8]"
+                    >
+                        <Activity className="h-4 w-4" />
+                        All Time Statistics
+                    </Button>
+                    <Button
+                        variant="outline"
+                        onClick={handleRefresh}
+                        disabled={refreshing}
+                        className="flex items-center gap-2"
+                    >
+                        <RefreshCw
+                            className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`}
+                        />
+                        {refreshing ? "Refreshing..." : "Refresh Data"}
+                    </Button>
+                </div>
             </div>
 
             {error && (
@@ -1071,6 +1485,67 @@ export default function ErrorsPage() {
                             onClick={() => setDetailDialogOpen(false)}
                         >
                             Close
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* All Time Statistics Dialog */}
+            <Dialog
+                open={allTimeStatsDialogOpen}
+                onOpenChange={(open) => {
+                    setAllTimeStatsDialogOpen(open);
+                    // Recalculate stats when reopening
+                    if (open && !loadingAllTimeStats) {
+                        calculateAllTimeStatistics();
+                    }
+                }}
+            >
+                <DialogContent className="sm:max-w-6xl max-h-[90vh] overflow-y-auto">
+                    <DialogHeader>
+                        <DialogTitle className="text-2xl flex items-center gap-2">
+                            <Activity className="h-6 w-6 text-[#0091D5]" />
+                            All Time Error Statistics
+                        </DialogTitle>
+                        <DialogDescription>
+                            Comprehensive analysis of all error data across
+                            categories
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    {loadingAllTimeStats ? (
+                        <div className="py-12 text-center">
+                            <RefreshCw className="h-8 w-8 animate-spin mx-auto text-[#0091D5]" />
+                            <p className="mt-4 text-muted-foreground">
+                                Loading comprehensive statistics...
+                            </p>
+                        </div>
+                    ) : allTimeStats ? (
+                        <AllTimeStatisticsView statistics={allTimeStats} />
+                    ) : (
+                        <div className="py-12 text-center text-muted-foreground">
+                            No statistics available
+                        </div>
+                    )}
+
+                    <DialogFooter>
+                        <Button
+                            variant="outline"
+                            onClick={() => setAllTimeStatsDialogOpen(false)}
+                        >
+                            Close
+                        </Button>
+                        <Button
+                            variant="default"
+                            className="bg-[#0091D5] hover:bg-[#007bb8]"
+                            onClick={() => {
+                                calculateAllTimeStatistics();
+                            }}
+                        >
+                            <RefreshCw
+                                className={`h-4 w-4 mr-2 ${loadingAllTimeStats ? "animate-spin" : ""}`}
+                            />
+                            Refresh Statistics
                         </Button>
                     </DialogFooter>
                 </DialogContent>
@@ -1642,6 +2117,947 @@ function ErrorStatisticsView({
                                     )}
                             </>
                         )}
+                    </div>
+                </CardContent>
+            </Card>
+        </div>
+    );
+}
+
+// All Time Statistics View Component
+interface AllTimeStatisticsViewProps {
+    statistics: AllTimeStatistics;
+}
+
+function AllTimeStatisticsView({ statistics }: AllTimeStatisticsViewProps) {
+    // Helper to get percentage
+    const getPercentage = (count: number, total: number) =>
+        total > 0 ? Math.round((count / total) * 100) : 0;
+
+    // Colors for consistent visualization
+    const categoryColors = {
+        user_errors: "#0091D5", // Primary blue
+        house_user_errors: "#FF6B6B", // Coral red
+        general_errors: "#4ADE80", // Green
+        authentication_errors: "#FFAB4C", // Amber/orange
+    };
+
+    return (
+        <div className="space-y-8 py-4">
+            {/* Top summary cards */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <Card>
+                    <CardHeader className="pb-2">
+                        <CardTitle className="text-lg">Total Errors</CardTitle>
+                        <CardDescription>Across all categories</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="text-3xl font-bold text-[#0091D5]">
+                            {statistics.totalErrors}
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-1">
+                            {statistics.resolvedVsUnresolved.resolved} resolved
+                            (
+                            {getPercentage(
+                                statistics.resolvedVsUnresolved.resolved,
+                                statistics.totalErrors,
+                            )}
+                            %)
+                        </p>
+                    </CardContent>
+                </Card>
+
+                <Card>
+                    <CardHeader className="pb-2">
+                        <CardTitle className="text-lg">By Category</CardTitle>
+                        <CardDescription>Error distribution</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-1">
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                                <div
+                                    className="h-3 w-3 rounded-full"
+                                    style={{
+                                        backgroundColor:
+                                            categoryColors.user_errors,
+                                    }}
+                                ></div>
+                                <span className="text-sm">User</span>
+                            </div>
+                            <span className="text-sm font-medium">
+                                {statistics.byCategoryCount.user_errors}
+                            </span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                                <div
+                                    className="h-3 w-3 rounded-full"
+                                    style={{
+                                        backgroundColor:
+                                            categoryColors.house_user_errors,
+                                    }}
+                                ></div>
+                                <span className="text-sm">House User</span>
+                            </div>
+                            <span className="text-sm font-medium">
+                                {statistics.byCategoryCount.house_user_errors}
+                            </span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                                <div
+                                    className="h-3 w-3 rounded-full"
+                                    style={{
+                                        backgroundColor:
+                                            categoryColors.general_errors,
+                                    }}
+                                ></div>
+                                <span className="text-sm">General</span>
+                            </div>
+                            <span className="text-sm font-medium">
+                                {statistics.byCategoryCount.general_errors}
+                            </span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                                <div
+                                    className="h-3 w-3 rounded-full"
+                                    style={{
+                                        backgroundColor:
+                                            categoryColors.authentication_errors,
+                                    }}
+                                ></div>
+                                <span className="text-sm">Auth</span>
+                            </div>
+                            <span className="text-sm font-medium">
+                                {
+                                    statistics.byCategoryCount
+                                        .authentication_errors
+                                }
+                            </span>
+                        </div>
+                    </CardContent>
+                </Card>
+
+                <Card>
+                    <CardHeader className="pb-2">
+                        <CardTitle className="text-lg">
+                            Resolution Status
+                        </CardTitle>
+                        <CardDescription>
+                            Resolved vs Unresolved
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="relative pt-1">
+                            <div className="flex mb-2 items-center justify-between">
+                                <div>
+                                    <span className="text-xs font-semibold inline-block py-1 px-2 uppercase rounded-full text-green-600 bg-green-200">
+                                        Resolved
+                                    </span>
+                                </div>
+                                <div className="text-right">
+                                    <span className="text-xs font-semibold inline-block text-green-600">
+                                        {getPercentage(
+                                            statistics.resolvedVsUnresolved
+                                                .resolved,
+                                            statistics.totalErrors,
+                                        )}
+                                        %
+                                    </span>
+                                </div>
+                            </div>
+                            <div className="overflow-hidden h-2 mb-4 text-xs flex rounded bg-gray-200">
+                                <div
+                                    style={{
+                                        width: `${getPercentage(statistics.resolvedVsUnresolved.resolved, statistics.totalErrors)}%`,
+                                    }}
+                                    className="shadow-none flex flex-col text-center whitespace-nowrap text-white justify-center bg-green-500"
+                                ></div>
+                            </div>
+                        </div>
+                    </CardContent>
+                </Card>
+
+                <Card>
+                    <CardHeader className="pb-2">
+                        <CardTitle className="text-lg">
+                            Avg. Resolution Time
+                        </CardTitle>
+                        <CardDescription>By category (hours)</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-1">
+                        {Object.entries(
+                            statistics.avgResolutionTimeByCategory,
+                        ).map(([category, time]) => (
+                            <div
+                                key={category}
+                                className="flex items-center justify-between"
+                            >
+                                <span className="text-sm">
+                                    {category
+                                        .split("_")
+                                        .map(
+                                            (word) =>
+                                                word.charAt(0).toUpperCase() +
+                                                word.slice(1),
+                                        )
+                                        .join(" ")}
+                                    :
+                                </span>
+                                <span className="text-sm font-medium">
+                                    {time !== null
+                                        ? `${time.toFixed(1)}h`
+                                        : "N/A"}
+                                </span>
+                            </div>
+                        ))}
+                    </CardContent>
+                </Card>
+            </div>
+
+            {/* Error trends over time */}
+            <Card>
+                <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                        <LineChart className="h-5 w-5 text-[#0091D5]" />
+                        Error Trends (6 Months)
+                    </CardTitle>
+                    <CardDescription>
+                        Monthly distribution by category
+                    </CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <div className="h-64 relative">
+                        {/* Chart container */}
+                        <div className="absolute inset-0">
+                            <svg
+                                viewBox="0 0 800 240"
+                                className="w-full h-full"
+                            >
+                                {/* X and Y axes */}
+                                <line
+                                    x1="50"
+                                    y1="200"
+                                    x2="750"
+                                    y2="200"
+                                    stroke="#e2e8f0"
+                                    strokeWidth="1"
+                                />
+                                <line
+                                    x1="50"
+                                    y1="40"
+                                    x2="50"
+                                    y2="200"
+                                    stroke="#e2e8f0"
+                                    strokeWidth="1"
+                                />
+
+                                {/* Y-axis labels */}
+                                <text
+                                    x="30"
+                                    y="200"
+                                    fontSize="10"
+                                    textAnchor="end"
+                                    fill="#64748b"
+                                >
+                                    0
+                                </text>
+                                <text
+                                    x="30"
+                                    y="160"
+                                    fontSize="10"
+                                    textAnchor="end"
+                                    fill="#64748b"
+                                >
+                                    25%
+                                </text>
+                                <text
+                                    x="30"
+                                    y="120"
+                                    fontSize="10"
+                                    textAnchor="end"
+                                    fill="#64748b"
+                                >
+                                    50%
+                                </text>
+                                <text
+                                    x="30"
+                                    y="80"
+                                    fontSize="10"
+                                    textAnchor="end"
+                                    fill="#64748b"
+                                >
+                                    75%
+                                </text>
+                                <text
+                                    x="30"
+                                    y="40"
+                                    fontSize="10"
+                                    textAnchor="end"
+                                    fill="#64748b"
+                                >
+                                    100%
+                                </text>
+
+                                {(() => {
+                                    // Calculate the max total for any month for scaling
+                                    const maxMonthlyTotal = Math.max(
+                                        ...statistics.monthlyTrend.map(
+                                            (month) =>
+                                                month.user_errors +
+                                                month.house_user_errors +
+                                                month.general_errors +
+                                                month.authentication_errors,
+                                        ),
+                                    );
+
+                                    // If no data, show empty chart
+                                    if (maxMonthlyTotal === 0) {
+                                        return (
+                                            <text
+                                                x="400"
+                                                y="120"
+                                                fontSize="14"
+                                                textAnchor="middle"
+                                                fill="#64748b"
+                                            >
+                                                No trend data available
+                                            </text>
+                                        );
+                                    }
+
+                                    const barWidth = 60;
+                                    const barSpacing = 100; // Total width allocated per month
+                                    const chartStart = 100; // Start X position for first bar
+
+                                    return (
+                                        <>
+                                            {/* X-axis labels (months) */}
+                                            {statistics.monthlyTrend.map(
+                                                (month, i) => (
+                                                    <text
+                                                        key={`month-${i}`}
+                                                        x={
+                                                            chartStart +
+                                                            i * barSpacing +
+                                                            barWidth / 2
+                                                        }
+                                                        y="220"
+                                                        fontSize="10"
+                                                        textAnchor="middle"
+                                                        fill="#64748b"
+                                                    >
+                                                        {month.month}
+                                                    </text>
+                                                ),
+                                            )}
+
+                                            {/* Stacked bars for each month */}
+                                            {statistics.monthlyTrend.map(
+                                                (month, i) => {
+                                                    const monthTotal =
+                                                        month.user_errors +
+                                                        month.house_user_errors +
+                                                        month.general_errors +
+                                                        month.authentication_errors;
+
+                                                    if (monthTotal === 0)
+                                                        return null;
+
+                                                    // Calculate heights based on percentages of max
+                                                    const scale =
+                                                        160 / maxMonthlyTotal; // 160 is the chart height (200-40)
+
+                                                    // Each category height
+                                                    const height1 =
+                                                        month.user_errors *
+                                                        scale;
+                                                    const height2 =
+                                                        month.house_user_errors *
+                                                        scale;
+                                                    const height3 =
+                                                        month.general_errors *
+                                                        scale;
+                                                    const height4 =
+                                                        month.authentication_errors *
+                                                        scale;
+
+                                                    // Y positions for stacking
+                                                    const y1 = 200 - height1;
+                                                    const y2 = y1 - height2;
+                                                    const y3 = y2 - height3;
+                                                    const y4 = y3 - height4;
+
+                                                    const x =
+                                                        chartStart +
+                                                        i * barSpacing;
+
+                                                    return (
+                                                        <g key={`bar-${i}`}>
+                                                            {/* User errors */}
+                                                            {height1 > 0 && (
+                                                                <rect
+                                                                    x={x}
+                                                                    y={y1}
+                                                                    width={
+                                                                        barWidth
+                                                                    }
+                                                                    height={
+                                                                        height1
+                                                                    }
+                                                                    fill={
+                                                                        categoryColors.user_errors
+                                                                    }
+                                                                    stroke="#fff"
+                                                                    strokeWidth="1"
+                                                                />
+                                                            )}
+
+                                                            {/* House user errors */}
+                                                            {height2 > 0 && (
+                                                                <rect
+                                                                    x={x}
+                                                                    y={y2}
+                                                                    width={
+                                                                        barWidth
+                                                                    }
+                                                                    height={
+                                                                        height2
+                                                                    }
+                                                                    fill={
+                                                                        categoryColors.house_user_errors
+                                                                    }
+                                                                    stroke="#fff"
+                                                                    strokeWidth="1"
+                                                                />
+                                                            )}
+
+                                                            {/* General errors */}
+                                                            {height3 > 0 && (
+                                                                <rect
+                                                                    x={x}
+                                                                    y={y3}
+                                                                    width={
+                                                                        barWidth
+                                                                    }
+                                                                    height={
+                                                                        height3
+                                                                    }
+                                                                    fill={
+                                                                        categoryColors.general_errors
+                                                                    }
+                                                                    stroke="#fff"
+                                                                    strokeWidth="1"
+                                                                />
+                                                            )}
+
+                                                            {/* Auth errors */}
+                                                            {height4 > 0 && (
+                                                                <rect
+                                                                    x={x}
+                                                                    y={y4}
+                                                                    width={
+                                                                        barWidth
+                                                                    }
+                                                                    height={
+                                                                        height4
+                                                                    }
+                                                                    fill={
+                                                                        categoryColors.authentication_errors
+                                                                    }
+                                                                    stroke="#fff"
+                                                                    strokeWidth="1"
+                                                                />
+                                                            )}
+
+                                                            {/* Total count label */}
+                                                            <text
+                                                                x={
+                                                                    x +
+                                                                    barWidth / 2
+                                                                }
+                                                                y={y4 - 5}
+                                                                fontSize="10"
+                                                                textAnchor="middle"
+                                                                fill="#64748b"
+                                                                fontWeight="bold"
+                                                            >
+                                                                {monthTotal}
+                                                            </text>
+                                                        </g>
+                                                    );
+                                                },
+                                            )}
+                                        </>
+                                    );
+                                })()}
+                            </svg>
+                        </div>
+                    </div>
+
+                    {/* Legend */}
+                    <div className="flex flex-wrap justify-center gap-4 mt-4">
+                        <div className="flex items-center gap-2">
+                            <div
+                                className="h-3 w-3 rounded-sm"
+                                style={{
+                                    backgroundColor: categoryColors.user_errors,
+                                }}
+                            ></div>
+                            <span className="text-sm">User Errors</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <div
+                                className="h-3 w-3 rounded-sm"
+                                style={{
+                                    backgroundColor:
+                                        categoryColors.house_user_errors,
+                                }}
+                            ></div>
+                            <span className="text-sm">House User Errors</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <div
+                                className="h-3 w-3 rounded-sm"
+                                style={{
+                                    backgroundColor:
+                                        categoryColors.general_errors,
+                                }}
+                            ></div>
+                            <span className="text-sm">General Errors</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <div
+                                className="h-3 w-3 rounded-sm"
+                                style={{
+                                    backgroundColor:
+                                        categoryColors.authentication_errors,
+                                }}
+                            ></div>
+                            <span className="text-sm">Auth Errors</span>
+                        </div>
+                    </div>
+                </CardContent>
+            </Card>
+
+            {/* Second row - Two card layout */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Status distribution by category card */}
+                <Card>
+                    <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                            <PieChart className="h-5 w-5 text-[#0091D5]" />
+                            Error Status by Category
+                        </CardTitle>
+                        <CardDescription>
+                            Distribution of error statuses across categories
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="grid grid-cols-2 gap-6">
+                            {Object.entries(statistics.byCategoryAndStatus).map(
+                                ([category, statuses]) => {
+                                    const total =
+                                        statuses.pending +
+                                        statuses.in_progress +
+                                        statuses.resolved +
+                                        statuses.failure +
+                                        statuses.other;
+                                    if (total === 0) return null;
+
+                                    return (
+                                        <div
+                                            key={category}
+                                            className="flex flex-col items-center"
+                                        >
+                                            <h4 className="font-medium text-sm mb-2">
+                                                {category
+                                                    .split("_")
+                                                    .map(
+                                                        (word) =>
+                                                            word
+                                                                .charAt(0)
+                                                                .toUpperCase() +
+                                                            word.slice(1),
+                                                    )
+                                                    .join(" ")}
+                                            </h4>
+
+                                            {/* Mini pie chart for this category */}
+                                            <div className="relative h-32 w-32">
+                                                <svg
+                                                    viewBox="0 0 100 100"
+                                                    className="h-full w-full -rotate-90"
+                                                >
+                                                    {(() => {
+                                                        // Generate pie chart segments
+                                                        const segments: React.ReactElement[] =
+                                                            [];
+                                                        let cumulativePercentage = 0;
+
+                                                        // Define status colors
+                                                        const statusColors = {
+                                                            pending: "#F59E0B",
+                                                            in_progress:
+                                                                "#3B82F6",
+                                                            resolved: "#10B981",
+                                                            failure: "#EF4444",
+                                                            other: "#6B7280",
+                                                        };
+
+                                                        // Create segments for each status
+                                                        Object.entries(
+                                                            statuses,
+                                                        ).forEach(
+                                                            (
+                                                                [status, count],
+                                                                index,
+                                                            ) => {
+                                                                const percentage =
+                                                                    getPercentage(
+                                                                        count,
+                                                                        total,
+                                                                    );
+
+                                                                if (
+                                                                    percentage >
+                                                                    0
+                                                                ) {
+                                                                    // Calculate start and end points
+                                                                    const startX =
+                                                                        50 +
+                                                                        40 *
+                                                                            Math.cos(
+                                                                                (2 *
+                                                                                    Math.PI *
+                                                                                    cumulativePercentage) /
+                                                                                    100,
+                                                                            );
+                                                                    const startY =
+                                                                        50 +
+                                                                        40 *
+                                                                            Math.sin(
+                                                                                (2 *
+                                                                                    Math.PI *
+                                                                                    cumulativePercentage) /
+                                                                                    100,
+                                                                            );
+
+                                                                    cumulativePercentage +=
+                                                                        percentage;
+
+                                                                    const endX =
+                                                                        50 +
+                                                                        40 *
+                                                                            Math.cos(
+                                                                                (2 *
+                                                                                    Math.PI *
+                                                                                    cumulativePercentage) /
+                                                                                    100,
+                                                                            );
+                                                                    const endY =
+                                                                        50 +
+                                                                        40 *
+                                                                            Math.sin(
+                                                                                (2 *
+                                                                                    Math.PI *
+                                                                                    cumulativePercentage) /
+                                                                                    100,
+                                                                            );
+
+                                                                    // For segments less than 50%, use regular arcs
+                                                                    const largeArcFlag =
+                                                                        percentage >
+                                                                        50
+                                                                            ? 1
+                                                                            : 0;
+
+                                                                    segments.push(
+                                                                        <path
+                                                                            key={
+                                                                                index
+                                                                            }
+                                                                            d={`M 50 50 L ${startX} ${startY} A 40 40 0 ${largeArcFlag} 1 ${endX} ${endY} Z`}
+                                                                            fill={
+                                                                                statusColors[
+                                                                                    status as keyof typeof statusColors
+                                                                                ]
+                                                                            }
+                                                                            stroke="#fff"
+                                                                            strokeWidth="0.5"
+                                                                        />,
+                                                                    );
+                                                                }
+                                                            },
+                                                        );
+
+                                                        // If all the same status, create a full circle
+                                                        if (
+                                                            segments.length ===
+                                                            1
+                                                        ) {
+                                                            const statusWithCount =
+                                                                Object.entries(
+                                                                    statuses,
+                                                                ).find(
+                                                                    ([
+                                                                        _,
+                                                                        count,
+                                                                    ]) =>
+                                                                        count >
+                                                                        0,
+                                                                );
+                                                            if (
+                                                                statusWithCount
+                                                            ) {
+                                                                return (
+                                                                    <circle
+                                                                        cx="50"
+                                                                        cy="50"
+                                                                        r="40"
+                                                                        fill={
+                                                                            statusColors[
+                                                                                statusWithCount[0] as keyof typeof statusColors
+                                                                            ]
+                                                                        }
+                                                                        stroke="#fff"
+                                                                        strokeWidth="0.5"
+                                                                    />
+                                                                );
+                                                            }
+                                                        }
+
+                                                        return segments;
+                                                    })()}
+
+                                                    {/* Donut hole */}
+                                                    <circle
+                                                        cx="50"
+                                                        cy="50"
+                                                        r="20"
+                                                        fill="white"
+                                                    />
+                                                </svg>
+
+                                                {/* Center text - total count */}
+                                                <div className="absolute inset-0 flex flex-col items-center justify-center">
+                                                    <span className="text-lg font-bold text-[#1C4E80]">
+                                                        {total}
+                                                    </span>
+                                                    <span className="text-xs text-muted-foreground">
+                                                        total
+                                                    </span>
+                                                </div>
+                                            </div>
+
+                                            {/* Mini legend for this category */}
+                                            <div className="w-full mt-2 space-y-1 text-xs">
+                                                {Object.entries(statuses).map(
+                                                    ([status, count]) => {
+                                                        if (count === 0)
+                                                            return null;
+
+                                                        const statusColors = {
+                                                            pending: "#F59E0B",
+                                                            in_progress:
+                                                                "#3B82F6",
+                                                            resolved: "#10B981",
+                                                            failure: "#EF4444",
+                                                            other: "#6B7280",
+                                                        };
+
+                                                        const statusNames = {
+                                                            pending: "Pending",
+                                                            in_progress:
+                                                                "In Progress",
+                                                            resolved:
+                                                                "Resolved",
+                                                            failure: "Failure",
+                                                            other: "Other",
+                                                        };
+
+                                                        return (
+                                                            <div
+                                                                key={status}
+                                                                className="flex justify-between items-center"
+                                                            >
+                                                                <div className="flex items-center gap-1">
+                                                                    <div
+                                                                        className="h-2 w-2 rounded-full"
+                                                                        style={{
+                                                                            backgroundColor:
+                                                                                statusColors[
+                                                                                    status as keyof typeof statusColors
+                                                                                ],
+                                                                        }}
+                                                                    ></div>
+                                                                    <span>
+                                                                        {
+                                                                            statusNames[
+                                                                                status as keyof typeof statusNames
+                                                                            ]
+                                                                        }
+                                                                    </span>
+                                                                </div>
+                                                                <span>
+                                                                    {count} (
+                                                                    {getPercentage(
+                                                                        count,
+                                                                        total,
+                                                                    )}
+                                                                    %)
+                                                                </span>
+                                                            </div>
+                                                        );
+                                                    },
+                                                )}
+                                            </div>
+                                        </div>
+                                    );
+                                },
+                            )}
+                        </div>
+                    </CardContent>
+                </Card>
+
+                {/* Most Common Error Types */}
+                <Card>
+                    <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                            <BarChart className="h-5 w-5 text-[#0091D5]" />
+                            Most Common Error Types
+                        </CardTitle>
+                        <CardDescription>
+                            Top error types across all categories
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="space-y-3">
+                            {statistics.mostCommonErrorTypes
+                                .slice(0, 7)
+                                .map((error, index) => (
+                                    <div key={index} className="space-y-1">
+                                        <div className="flex justify-between text-sm">
+                                            <div className="flex items-center gap-2">
+                                                <div
+                                                    className="h-3 w-3 rounded-full"
+                                                    style={{
+                                                        backgroundColor:
+                                                            categoryColors[
+                                                                error.category
+                                                            ],
+                                                    }}
+                                                ></div>
+                                                <span
+                                                    className="font-medium truncate"
+                                                    style={{
+                                                        maxWidth: "200px",
+                                                    }}
+                                                    title={error.type}
+                                                >
+                                                    {error.type}
+                                                </span>
+                                            </div>
+                                            <span className="text-muted-foreground">
+                                                {error.count} (
+                                                {getPercentage(
+                                                    error.count,
+                                                    statistics.totalErrors,
+                                                )}
+                                                %)
+                                            </span>
+                                        </div>
+                                        <div className="w-full bg-gray-200 rounded-full h-2.5">
+                                            <div
+                                                className="h-2.5 rounded-full"
+                                                style={{
+                                                    width: `${getPercentage(error.count, statistics.totalErrors)}%`,
+                                                    backgroundColor:
+                                                        categoryColors[
+                                                            error.category
+                                                        ],
+                                                }}
+                                            ></div>
+                                        </div>
+                                    </div>
+                                ))}
+
+                            {statistics.mostCommonErrorTypes.length === 0 && (
+                                <div className="py-8 text-center text-muted-foreground">
+                                    No error type data available
+                                </div>
+                            )}
+                        </div>
+                    </CardContent>
+                </Card>
+            </div>
+
+            {/* Third row - Weekday distribution */}
+            <Card>
+                <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                        <Calendar className="h-5 w-5 text-[#0091D5]" />
+                        Error Distribution by Day of Week
+                    </CardTitle>
+                    <CardDescription>
+                        When errors are most likely to occur
+                    </CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <div className="h-64">
+                        <div className="h-full w-full flex items-end justify-between px-10">
+                            {statistics.errorDistributionByDay.map(
+                                (day, index) => {
+                                    // Calculate the maximum count for scaling
+                                    const maxCount = Math.max(
+                                        ...statistics.errorDistributionByDay.map(
+                                            (d) => d.count,
+                                        ),
+                                    );
+                                    // Calculate height as percentage of max (up to 85% of container)
+                                    const barHeight =
+                                        maxCount > 0
+                                            ? (day.count / maxCount) * 85
+                                            : 0;
+
+                                    // Determine color based on count (higher counts = more intense color)
+                                    const intensity =
+                                        maxCount > 0 ? day.count / maxCount : 0;
+                                    const barColor = `rgba(0, 145, 213, ${0.3 + intensity * 0.7})`; // 0091D5 with variable opacity
+
+                                    return (
+                                        <div
+                                            key={index}
+                                            className="flex flex-col items-center justify-end"
+                                        >
+                                            {/* Bar */}
+                                            <div
+                                                className="w-14 rounded-t-md transition-all duration-300 hover:opacity-80"
+                                                style={{
+                                                    height: `${barHeight}%`,
+                                                    backgroundColor: barColor,
+                                                    minHeight:
+                                                        day.count > 0
+                                                            ? "10px"
+                                                            : "0",
+                                                }}
+                                            >
+                                                {/* Count label on top of bar */}
+                                                <div className="text-center text-white font-medium pt-1">
+                                                    {day.count > 0 && day.count}
+                                                </div>
+                                            </div>
+
+                                            {/* Day label */}
+                                            <div className="mt-2 text-sm font-medium">
+                                                {day.dayOfWeek}
+                                            </div>
+                                        </div>
+                                    );
+                                },
+                            )}
+                        </div>
                     </div>
                 </CardContent>
             </Card>
