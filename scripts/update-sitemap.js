@@ -1,43 +1,39 @@
-#!/usr/bin/env node
-
 /**
- * This script updates the lastModified dates in the sitemap.ts file
- * to reflect the current date. It can be run manually or as a cron job
- * whenever content is updated.
- * 
- * To run: node scripts/update-sitemap.js
+ * update-sitemap.js
+ *
+ * This script checks if the sitemap.ts file exists and logs confirmation.
+ * Used as a prebuild step for ensuring the sitemap is available.
  */
 
-const fs = require('fs');
-const path = require('path');
+const fs = require("fs");
+const path = require("path");
 
-// Paths
-const sitemapPath = path.join(__dirname, '../src/app/sitemap.ts');
+// Simple color functions for terminal output (avoiding chalk ESM issues)
+const colors = {
+    green: (text) => `\x1b[32m${text}\x1b[0m`,
+    yellow: (text) => `\x1b[33m${text}\x1b[0m`,
+    red: (text) => `\x1b[31m${text}\x1b[0m`,
+};
 
-// Function to update the sitemap
-function updateSitemap() {
-  console.log('Updating sitemap lastModified dates...');
-  
-  try {
-    // Read the sitemap file
-    let sitemapContent = fs.readFileSync(sitemapPath, 'utf8');
-    
-    // Replace all lastModified dates with the current date
-    const currentDate = new Date().toISOString();
-    sitemapContent = sitemapContent.replace(
-      /lastModified: new Date\([^)]*\)/g,
-      `lastModified: new Date('${currentDate}')`
-    );
-    
-    // Write the updated content back to the file
-    fs.writeFileSync(sitemapPath, sitemapContent, 'utf8');
-    
-    console.log('Sitemap updated successfully with date:', currentDate);
-  } catch (error) {
-    console.error('Error updating sitemap:', error);
-    process.exit(1);
-  }
+// Define the path to sitemap.ts
+const sitemapPath = path.join(process.cwd(), "src", "app", "sitemap.ts");
+
+// Check if the sitemap.ts file exists
+try {
+    if (fs.existsSync(sitemapPath)) {
+        console.log(
+            colors.green("✓ sitemap.ts is available - ready for build"),
+        );
+    } else {
+        console.warn(
+            colors.yellow(
+                "⚠ sitemap.ts not found. The build process will continue, but the site may not have a sitemap.",
+            ),
+        );
+    }
+} catch (err) {
+    console.error(colors.red("Error checking sitemap.ts:"), err);
 }
 
-// Run the update
-updateSitemap(); 
+// Exit successfully to allow build to continue
+process.exit(0);

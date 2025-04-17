@@ -1,7 +1,7 @@
 {
-    "name": "Ochtarcus",
-    "short_name": "Ochtarcus",
-    "description": "Browse and search through our curated library of videos and blog posts with powerful search features.",
+    "name": "WatchDash by Solace",
+    "short_name": "WatchDash",
+    "description": "A centralized monitoring solution with decentralized control capabilities, empowering teams to monitor their own devices and systems while connecting to a shared source of information.",
     "start_url": "/",
     "display": "standalone",
     "background_color": "#f5f5ee",
@@ -9,13 +9,13 @@
     "orientation": "portrait-primary",
     "icons": [
         {
-            "src": "/logo.png",
+            "src": "/banner.png",
             "sizes": "192x192",
             "type": "image/png",
             "purpose": "any"
         },
         {
-            "src": "/logo.png",
+            "src": "/banner.png",
             "sizes": "512x512",
             "type": "image/png",
             "purpose": "any"
@@ -27,15 +27,31 @@
             "short_name": "Library",
             "description": "Browse our content library",
             "url": "/library",
-            "icons": [{ "src": "/logo.png", "sizes": "192x192" }]
+            "icons": [
+                {
+                    "src": "/banner.png",
+                    "sizes": "192x192"
+                }
+            ]
         },
         {
             "name": "AI Chat",
             "short_name": "AI Chat",
             "description": "Chat with AI capabilities",
             "url": "/ai-chat",
-            "icons": [{ "src": "/logo.png", "sizes": "192x192" }]
+            "icons": [
+                {
+                    "src": "/banner.png",
+                    "sizes": "192x192"
+                }
+            ]
         }
     ],
-    "categories": ["education", "productivity", "utilities"]
-} 
+    "categories": [
+        "monitoring",
+        "technical",
+        "productivity",
+        "utilities",
+        "enterprise"
+    ]
+}

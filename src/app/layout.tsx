@@ -16,18 +16,32 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-    title: {
-        default: "WatchDash",
-        template: "%s | WatchDash",
-    },
-    description: "Real-time monitoring dashboard for system connectivity",
+    title: "WatchDash by Solace | Centralized Monitoring Solution",
+    description:
+        "WatchDash operates as a centralized monitoring solution with decentralized control capabilities, connecting teams with shared information across devices and systems.",
     keywords: [
-        "connectivity",
-        "dashboard",
         "monitoring",
-        "realtime",
-        "firebase",
+        "dashboard",
+        "solace",
+        "devices",
+        "metrics",
+        "visibility",
     ],
+    authors: [{ name: "Solace" }],
+    openGraph: {
+        title: "WatchDash by Solace | Centralized Monitoring Solution",
+        description:
+            "WatchDash is not just a dashboard — it is a model for how technical monitoring can be structured: many systems, one view.",
+        images: ["/images/banner.png"],
+        type: "website",
+    },
+    twitter: {
+        card: "summary_large_image",
+        title: "WatchDash by Solace",
+        description:
+            "Strategic visibility into multiple system components with decentralized monitoring and unified intelligence.",
+        images: ["/images/banner.png"],
+    },
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {

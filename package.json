@@ -1,8 +1,8 @@
 {
-    "name": "ochtarcus-client",
+    "name": "watchdash",
     "version": "1.0.0",
     "private": false,
-    "website": "https://ochtarcus.com/",
+    "website": "https://watchdash.ensihome.solace.com/",
     "license": "MIT",
     "scripts": {
         "dev": "next dev --turbopack",

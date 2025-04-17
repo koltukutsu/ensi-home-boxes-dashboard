@@ -42,6 +42,15 @@ import {
     Server,
 } from "lucide-react";
 import { Button } from "@/registry/new-york-v4/ui/button";
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from "@/registry/new-york-v4/ui/dialog";
+import { DialogClose } from "@/registry/new-york-v4/ui/dialog";
 
 // Time range options for the charts
 const TIME_RANGES = [
@@ -71,6 +80,10 @@ export default function DashboardPage() {
     const [viewMode, setViewMode] = useState<"devices" | "timeline">("devices");
     const router = useRouter();
     const previousLogRef = useRef<HomeAssistantSnapshot | null>(null);
+
+    // Dialog state
+    const [showIncludedDialog, setShowIncludedDialog] = useState(false);
+    const [showExcludedDialog, setShowExcludedDialog] = useState(false);
 
     // Function to filter logs based on selected time range
     const filterLogsByTimeRange = (logs: HomeAssistantSnapshot[]) => {
@@ -611,22 +624,146 @@ export default function DashboardPage() {
                                 <span className="font-medium text-green-600 dark:text-green-400">
                                     {withData.length}
                                 </span>{" "}
-                                machines included in calculations:{" "}
-                                {withData.map((m) => m.name).join(", ")}
+                                machines included in calculations
+                                <Button
+                                    variant="link"
+                                    className="px-1.5 py-0 h-auto text-sm text-blue-600 dark:text-blue-400"
+                                    onClick={() => setShowIncludedDialog(true)}
+                                >
+                                    Show
+                                </Button>
                             </p>
+
                             {withoutData.length > 0 && (
                                 <p className="mt-1">
                                     <span className="font-medium text-amber-600 dark:text-amber-400">
                                         {withoutData.length}
                                     </span>{" "}
-                                    machines excluded due to missing data:{" "}
-                                    {withoutData.map((m) => m.name).join(", ")}
+                                    machines excluded due to missing data
+                                    <Button
+                                        variant="link"
+                                        className="px-1.5 py-0 h-auto text-sm text-blue-600 dark:text-blue-400"
+                                        onClick={() =>
+                                            setShowExcludedDialog(true)
+                                        }
+                                    >
+                                        Show
+                                    </Button>
                                 </p>
                             )}
                         </div>
                     );
                 })()}
             </div>
+
+            {/* Dialogs for machine lists */}
+            <Dialog
+                open={showIncludedDialog}
+                onOpenChange={setShowIncludedDialog}
+            >
+                <DialogContent className="sm:max-w-md">
+                    <DialogHeader>
+                        <DialogTitle>
+                            Machines Included in Calculations
+                        </DialogTitle>
+                        <DialogDescription>
+                            These machines have valid CPU and memory data for
+                            resource calculations.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-1">
+                        {logs
+                            .reduce(
+                                (acc, log) => {
+                                    const deviceId = log.deviceId || "unknown";
+                                    if (
+                                        typeof log.system_cpu_percent ===
+                                            "number" &&
+                                        typeof log.system_memory_percent ===
+                                            "number" &&
+                                        !acc.some(
+                                            (item) => item.name === deviceId,
+                                        )
+                                    ) {
+                                        acc.push({ name: deviceId });
+                                    }
+                                    return acc;
+                                },
+                                [] as { name: string }[],
+                            )
+                            .map((machine) => (
+                                <div
+                                    key={machine.name}
+                                    className="flex items-center p-2 rounded bg-muted/50"
+                                >
+                                    <Server className="h-4 w-4 mr-2 text-green-600 dark:text-green-400" />
+                                    <span>{machine.name}</span>
+                                </div>
+                            ))}
+                    </div>
+                    <DialogFooter className="sm:justify-start">
+                        <DialogClose asChild>
+                            <Button type="button" variant="secondary">
+                                Close
+                            </Button>
+                        </DialogClose>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            <Dialog
+                open={showExcludedDialog}
+                onOpenChange={setShowExcludedDialog}
+            >
+                <DialogContent className="sm:max-w-md">
+                    <DialogHeader>
+                        <DialogTitle>
+                            Machines Excluded from Calculations
+                        </DialogTitle>
+                        <DialogDescription>
+                            These machines are missing CPU and/or memory data
+                            required for resource calculations.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-1">
+                        {logs
+                            .reduce(
+                                (acc, log) => {
+                                    const deviceId = log.deviceId || "unknown";
+                                    if (
+                                        (typeof log.system_cpu_percent !==
+                                            "number" ||
+                                            typeof log.system_memory_percent !==
+                                                "number") &&
+                                        !acc.some(
+                                            (item) => item.name === deviceId,
+                                        )
+                                    ) {
+                                        acc.push({ name: deviceId });
+                                    }
+                                    return acc;
+                                },
+                                [] as { name: string }[],
+                            )
+                            .map((machine) => (
+                                <div
+                                    key={machine.name}
+                                    className="flex items-center p-2 rounded bg-muted/50"
+                                >
+                                    <Server className="h-4 w-4 mr-2 text-amber-600 dark:text-amber-400" />
+                                    <span>{machine.name}</span>
+                                </div>
+                            ))}
+                    </div>
+                    <DialogFooter className="sm:justify-start">
+                        <DialogClose asChild>
+                            <Button type="button" variant="secondary">
+                                Close
+                            </Button>
+                        </DialogClose>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
 
             {/* Time Range Selector */}
             <div className="flex justify-between items-center mb-4">
