@@ -1,0 +1,507 @@
+@import "tailwindcss";
+
+@plugin "tailwindcss-animate";
+
+@custom-variant dark (&:is(.dark *));
+
+/* Custom scrollbar styles */
+.scrollbar-thin {
+  scrollbar-width: thin;
+}
+
+.scrollbar-thumb-gray-300 {
+  scrollbar-color: #d1d5db transparent;
+}
+
+.dark .scrollbar-thumb-gray-700 {
+  scrollbar-color: #374151 transparent;
+}
+
+/* For Webkit browsers */
+.scrollbar-thin::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.scrollbar-thumb-gray-300::-webkit-scrollbar-thumb {
+  background-color: #d1d5db;
+  border-radius: 3px;
+}
+
+.dark .scrollbar-thumb-gray-700::-webkit-scrollbar-thumb {
+  background-color: #374151;
+}
+
+.scrollbar-track-transparent::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+:root {
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.145 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.145 0 0);
+  --primary: #1c4e80;
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: #0091d5;
+  --secondary-foreground: oklch(0.205 0 0);
+  --muted: oklch(0.97 0 0);
+  --muted-foreground: #7e909a;
+  --accent: #ea6a47;
+  --accent-foreground: oklch(0.205 0 0);
+  --destructive: oklch(0.577 0.245 27.325);
+  --destructive-foreground: oklch(0.577 0.245 27.325);
+  --border: oklch(0.922 0 0);
+  --input: oklch(0.922 0 0);
+  --ring: #1c4e80;
+  --chart-1: #1c4e80;
+  --chart-2: #0091d5;
+  --chart-3: #a5d8dd;
+  --chart-4: #ea6a47;
+  --chart-5: #7e909a;
+  --radius: 0.625rem;
+  --sidebar: oklch(0.985 0 0);
+  --sidebar-foreground: oklch(0.145 0 0);
+  --sidebar-primary: #1c4e80;
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.97 0 0);
+  --sidebar-accent-foreground: oklch(0.205 0 0);
+  --sidebar-border: oklch(0.922 0 0);
+  --sidebar-ring: #1c4e80;
+  --background: #f1f1f1;
+  --foreground: #202020;
+}
+
+.dark {
+  --background: #202020;
+  --foreground: oklch(0.985 0 0);
+  --card: #202020;
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.145 0 0);
+  --popover-foreground: oklch(0.985 0 0);
+  --primary: #1c4e80;
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: #0091d5;
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.269 0 0);
+  --muted-foreground: #7e909a;
+  --accent: #ea6a47;
+  --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.396 0.141 25.723);
+  --destructive-foreground: oklch(0.637 0.237 25.331);
+  --border: oklch(0.269 0 0);
+  --input: oklch(0.269 0 0);
+  --ring: #1c4e80;
+  --chart-1: #1c4e80;
+  --chart-2: #0091d5;
+  --chart-3: #a5d8dd;
+  --chart-4: #ea6a47;
+  --chart-5: #7e909a;
+  --sidebar: oklch(0.205 0 0);
+  --sidebar-foreground: oklch(0.985 0 0);
+  --sidebar-primary: #1c4e80;
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.269 0 0);
+  --sidebar-accent-foreground: oklch(0.985 0 0);
+  --sidebar-border: oklch(0.269 0 0);
+  --sidebar-ring: #1c4e80;
+}
+
+.theme-login-one {
+  --primary: #ce2a2d;
+  --primary-foreground: #fff;
+  --ring: #ce2a2d9c;
+  --radius: 0rem;
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+
+  font-family: var(--font-sans);
+
+  a {
+    color: var(--primary);
+  }
+
+  [data-slot="card"] {
+    border-radius: 0rem;
+    box-shadow: none;
+  }
+}
+
+.theme-login-two {
+  --primary: #035fa8;
+  --primary-foreground: #fff;
+  --ring: #035fa89c;
+  font-family: var(--font-serif);
+
+  a {
+    color: var(--primary);
+  }
+}
+
+.theme-login-three {
+  --primary: #22c55e;
+  --primary-foreground: #000;
+  --ring: #22c55e;
+  --radius: 1.5rem;
+
+  font-family: var(--font-manrope);
+
+  a {
+    color: var(--primary);
+  }
+
+  [data-slot="card"] {
+    @apply shadow-xl;
+  }
+
+  [data-slot="input"] {
+    @apply dark:bg-input;
+  }
+}
+
+@theme inline {
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --animate-accordion-down: accordion-down 0.2s ease-out;
+  --animate-accordion-up: accordion-up 0.2s ease-out;
+
+  @keyframes accordion-down {
+    from {
+      height: 0;
+    }
+    to {
+      height: var(--radix-accordion-content-height);
+    }
+  }
+
+  @keyframes accordion-up {
+    from {
+      height: var(--radix-accordion-content-height);
+    }
+    to {
+      height: 0;
+    }
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+/* Page Transitions */
+.page-transition-wrapper {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+.page-enter {
+  opacity: 0;
+  transform: translateY(20px);
+}
+
+.page-enter-active {
+  opacity: 1;
+  transform: translateY(0);
+  transition:
+    opacity 400ms,
+    transform 400ms;
+}
+
+.page-exit {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.page-exit-active {
+  opacity: 0;
+  transform: translateY(-20px);
+  transition:
+    opacity 300ms,
+    transform 300ms;
+}
+
+/* Custom animations */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideInFromRight {
+  from {
+    opacity: 0;
+    transform: translateX(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.5s ease forwards;
+}
+
+.animate-slide-up {
+  animation: slideUp 0.5s ease forwards;
+}
+
+.animate-slide-in-right {
+  animation: slideInFromRight 0.5s ease forwards;
+}
+
+/* Animation delays for staggered effects */
+.delay-100 {
+  animation-delay: 100ms;
+}
+
+.delay-200 {
+  animation-delay: 200ms;
+}
+
+.delay-300 {
+  animation-delay: 300ms;
+}
+
+.delay-400 {
+  animation-delay: 400ms;
+}
+
+.delay-500 {
+  animation-delay: 500ms;
+}
+
+/* Smooth animation for all transitions */
+* {
+  transition-property: background-color, border-color, color, fill, stroke;
+  transition-duration: 0.3s;
+  transition-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* Apply only to non-transform properties to avoid conflicts with Framer Motion */
+button,
+a {
+  transition-property:
+    background-color, border-color, color, fill, stroke, box-shadow;
+  transition-duration: 0.3s;
+}
+
+/* For improved animation performance */
+.transition-all,
+.transition-transform,
+.transition-opacity {
+  will-change: transform, opacity;
+}
+
+/* Add responsive utilities */
+@layer utilities {
+  /* Responsive padding/margin helpers */
+  .p-responsive {
+    @apply p-4 sm:p-6 lg:p-8;
+  }
+
+  .py-responsive {
+    @apply py-4 sm:py-6 lg:py-8;
+  }
+
+  .px-responsive {
+    @apply px-4 sm:px-6 lg:px-8;
+  }
+
+  .m-responsive {
+    @apply m-4 sm:m-6 lg:m-8;
+  }
+
+  .my-responsive {
+    @apply my-4 sm:my-6 lg:my-8;
+  }
+
+  .mx-responsive {
+    @apply mx-4 sm:mx-6 lg:mx-8;
+  }
+
+  /* Text responsive helpers */
+  .text-responsive-title {
+    @apply text-2xl sm:text-3xl lg:text-4xl font-bold;
+  }
+
+  .text-responsive-subtitle {
+    @apply text-xl sm:text-2xl lg:text-3xl font-semibold;
+  }
+
+  .text-responsive-body {
+    @apply text-sm sm:text-base leading-relaxed;
+  }
+}
+
+/* Custom breakpoint styles */
+@media (max-width: 640px) {
+  .hide-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .hide-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Improved tap targets for mobile */
+  button,
+  a {
+    @apply min-h-[44px] min-w-[44px];
+  }
+}
+
+/* Add styles for better mobile experience */
+html,
+body {
+  @apply overflow-x-hidden;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Improved dark/light mode transitions */
+.dark body,
+body {
+  transition:
+    background-color 0.3s ease,
+    color 0.3s ease;
+}
+
+/* Responsive grid layouts */
+.responsive-grid {
+  @apply grid gap-4 sm:gap-6;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr));
+}
+
+.responsive-grid-tight {
+  @apply grid gap-3 sm:gap-4;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 250px), 1fr));
+}
+
+/* Responsive container with max width based on screen */
+.container-responsive {
+  @apply w-full mx-auto px-4 sm:px-6;
+  max-width: min(100%, 1400px);
+}
+
+/* Page exit animations - used with page transitions */
+html.page-exit main {
+  opacity: 0;
+  transform: translateY(20px);
+  transition:
+    opacity 0.3s ease,
+    transform 0.3s ease;
+}
+
+/* Add custom animations for visit counter */
+@keyframes countPulse {
+  0% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.15);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes countUp {
+  0% {
+    opacity: 0;
+    transform: translateY(5px);
+  }
+  20% {
+    opacity: 1;
+    transform: translateY(-15px);
+  }
+  80% {
+    opacity: 1;
+    transform: translateY(-20px);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-30px);
+  }
+}
+
+.visit-count-animate {
+  animation: countPulse 0.5s ease-in-out;
+}
+
+.visit-increment-animate {
+  animation: countUp 1.5s ease-out forwards;
+  color: var(--primary);
+}
+
+/* Improve responsive grid layouts for better card display */
+.card-grid {
+  @apply grid gap-4 sm:gap-6 md:gap-5;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr));
+}
+
+.card-grid-dense {
+  @apply grid gap-3 sm:gap-4;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 250px), 1fr));
+}

@@ -1,0 +1,52 @@
+---
+description: The client web app of octarcus
+globs: client/*
+alwaysApply: false
+---
+# WatchDash - Device Monitoring Dashboard by Solace
+
+## Project Name
+**WatchDash** – A Next.js monitoring dashboard application with the following primary features:
+1. Device and entity monitoring with real-time updates
+2. Detailed device information and entity status
+3. Performance metrics visualization
+4. Secure authentication
+
+## Tech Stack & Libraries
+- **Next.js App Router**
+- **React with Hooks**
+- **TypeScript**
+- **Firebase Authentication**
+- **Tailwind CSS**
+- **Shadcn UI Components**
+- **Lucide Icons**
+- **Real-time Data Subscription**
+
+## High-Level App Structure
+- **Authentication Flow**:
+  - Login page with admin mockup credentials
+  - Firebase authentication integration
+  - Route protection for unauthenticated users
+
+- **Main Dashboard**:
+  - Real-time device monitoring
+  - System performance charts (CPU, Memory)
+  - Device list with filtering
+  - Notification service for state changes
+
+- **Device Detail Page**:
+  - Comprehensive device information
+  - Connection details
+  - Associated entities list
+  - Status indicators
+
+## App Navigation
+- **Home** (`/`) - Redirects to dashboard if authenticated, login if not
+- **Login** (`/login`) - Authentication page with admin mockup
+- **Dashboard** (`/dashboard`) - Main monitoring view with summary cards
+- **Device Detail** (`/dashboard/device/[id]`) - Detailed device information
+
+## Data Types
+- **Device**: Hardware devices with properties like manufacturer, model, connections
+- **Entity**: Components or services provided by devices
+- **HomeAssistantSnapshot**: Time-based logs with system metrics

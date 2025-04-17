@@ -1,0 +1,57 @@
+# Ochtarcus Client Rules
+
+## Overview
+
+Ochtarcus is a content library platform focused on startup, business, and technology content. The client is built with Next.js, React, and uses Firebase for authentication and storage.
+
+## Features
+
+- **Content Library**: Browse videos and blog posts organized by categories
+- **User Authentication**: Sign in with email/password or Google
+- **Bookmarking**: Save content to view later
+- **View History**: Track content you've already viewed
+- **Recommendations**: Personalized content recommendations
+- **Content Submission**: Submit your own content for review
+- **Admin Dashboard**: For content moderation (admin users only)
+- **AI Chat**: Chat with an AI assistant about the content library
+
+## AI Chat Feature
+
+The AI Chat feature allows users to chat with an AI assistant about the content library. It uses Vercel AI SDK and OpenAI's GPT-4o model for intelligent responses.
+
+### Key Implementation Points:
+
+1. **User Authentication Required**: Only logged-in users can access the AI Chat
+2. **API Key or Subscription**: Users must either:
+   - Provide their own OpenAI API key (stored in localStorage and optionally in Firestore)
+   - Have an active Pro or Enterprise subscription
+3. **RAG Implementation**: Uses Retrieval Augmented Generation to provide references to content
+4. **Streaming Responses**: Real-time streaming of AI responses using the edge runtime
+5. **Content References**: AI responses include references to relevant content from the library
+
+## Design System
+
+The application uses a custom design system based on Radix UI and Tailwind CSS. Major components are:
+
+- Dark/light mode support
+- Responsive design for all screen sizes
+- Consistent UI components defined in `/registry/new-york-v4/ui/`
+
+## File Structure
+
+- `/app` - Next.js App Router pages
+- `/components` - Reusable React components
+- `/context` - React context providers
+- `/lib` - Utility functions and services
+- `/registry` - UI component library
+- `/public` - Static assets
+
+## Adding New Features
+
+When adding new features:
+
+1. Follow the existing folder structure and naming conventions
+2. Use the established UI components from the registry
+3. Add proper authentication checks for protected routes
+4. Include responsive designs for all screen sizes
+5. Test on both light and dark themes 
