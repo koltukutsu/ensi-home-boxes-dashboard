@@ -19,6 +19,10 @@ import {
     CreditCard,
     Laptop,
     Monitor,
+    LayoutDashboard,
+    AlertCircle,
+    BarChart4,
+    ChevronDown,
 } from "lucide-react";
 
 import {
@@ -46,6 +50,11 @@ import {
     TooltipProvider,
     TooltipTrigger,
 } from "@/registry/new-york-v4/ui/tooltip";
+import {
+    Popover,
+    PopoverContent,
+    PopoverTrigger,
+} from "@/registry/new-york-v4/ui/popover";
 
 export function NavHeader() {
     const pathname = usePathname();
@@ -53,6 +62,7 @@ export function NavHeader() {
     const [isOpen, setIsOpen] = useState(false);
     const [authModalOpen, setAuthModalOpen] = useState(false);
     const { user, loading, userData } = useAuth();
+    const [dashboardPopoverOpen, setDashboardPopoverOpen] = useState(false);
 
     const navItems = [
         {
@@ -83,6 +93,20 @@ export function NavHeader() {
         },
     ];
 
+    // Dashboard navigation items
+    const dashboardNavItems = [
+        {
+            href: "/dashboard",
+            label: "Performance",
+            icon: <LayoutDashboard className="h-5 w-5" />,
+        },
+        {
+            href: "/dashboard/errors",
+            label: "Errors",
+            icon: <AlertCircle className="h-5 w-5" />,
+        },
+    ];
+
     // Check if user has premium access
     const hasPremiumAccess =
         userData?.subscriptionTier === "pro" ||
@@ -92,6 +116,8 @@ export function NavHeader() {
 
     // Check if we're in a device page
     const isDevicePage = pathname.includes("/dashboard/device");
+    // Check if we're in the dashboard section
+    const isDashboardPage = pathname.includes("/dashboard");
 
     return (
         <>
@@ -115,6 +141,100 @@ export function NavHeader() {
                         Ochtarcus
                     </span>
                 </Link>
+
+                {/* Dashboard Button with Dropdown/Drawer - hide when inside dashboard pages */}
+                {false && isDashboardPage && (
+                    <div className="absolute left-1/2 transform -translate-x-1/2">
+                        <div className="hidden md:block">
+                            <Popover
+                                open={dashboardPopoverOpen}
+                                onOpenChange={setDashboardPopoverOpen}
+                            >
+                                <PopoverTrigger asChild>
+                                    <Button
+                                        variant="outline"
+                                        className="flex items-center gap-2 px-3 py-2"
+                                    >
+                                        <BarChart4 className="h-4 w-4" />
+                                        <span>Dashboard</span>
+                                        <ChevronDown className="h-4 w-4" />
+                                    </Button>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-56 p-2">
+                                    <div className="flex flex-col space-y-1">
+                                        {dashboardNavItems.map((item) => (
+                                            <Button
+                                                key={item.href}
+                                                variant="ghost"
+                                                className={`justify-start gap-2 ${
+                                                    pathname === item.href
+                                                        ? "bg-primary/10 text-primary font-medium"
+                                                        : ""
+                                                }`}
+                                                asChild
+                                            >
+                                                <Link
+                                                    href={item.href}
+                                                    onClick={() =>
+                                                        setDashboardPopoverOpen(
+                                                            false,
+                                                        )
+                                                    }
+                                                >
+                                                    {item.icon}
+                                                    <span>{item.label}</span>
+                                                </Link>
+                                            </Button>
+                                        ))}
+                                    </div>
+                                </PopoverContent>
+                            </Popover>
+                        </div>
+                        <div className="md:hidden">
+                            <Sheet>
+                                <SheetTrigger asChild>
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        className="flex items-center gap-2"
+                                    >
+                                        <BarChart4 className="h-4 w-4" />
+                                        <span>Dashboard</span>
+                                        <ChevronDown className="h-4 w-4" />
+                                    </Button>
+                                </SheetTrigger>
+                                <SheetContent side="top" className="pt-12">
+                                    <div className="flex flex-col space-y-4">
+                                        <h3 className="font-medium">
+                                            Dashboard Navigation
+                                        </h3>
+                                        <div className="grid grid-cols-2 gap-2">
+                                            {dashboardNavItems.map((item) => (
+                                                <Button
+                                                    key={item.href}
+                                                    variant={
+                                                        pathname === item.href
+                                                            ? "default"
+                                                            : "outline"
+                                                    }
+                                                    className="w-full justify-start gap-2"
+                                                    asChild
+                                                >
+                                                    <Link href={item.href}>
+                                                        {item.icon}
+                                                        <span>
+                                                            {item.label}
+                                                        </span>
+                                                    </Link>
+                                                </Button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                </SheetContent>
+                            </Sheet>
+                        </div>
+                    </div>
+                )}
 
                 {/* Desktop Navigation */}
                 <div className="hidden sm:hidden md:flex items-center gap-2 lg:gap-4">
@@ -323,6 +443,73 @@ export function NavHeader() {
 
                             {/* Navigation items */}
                             <div className="px-4 py-4 sm:py-6 flex flex-col">
+                                {/* Add Dashboard Navigation if on dashboard pages - only in mobile drawer */}
+                                {isDashboardPage && (
+                                    <>
+                                        <div className="mb-1 ml-1 text-xs uppercase text-muted-foreground font-medium tracking-wide">
+                                            Dashboard
+                                        </div>
+                                        <Separator className="mb-4" />
+                                        <div className="flex flex-col space-y-1 mb-6">
+                                            {dashboardNavItems.map(
+                                                (item, index) => (
+                                                    <motion.div
+                                                        key={item.href}
+                                                        initial={{
+                                                            opacity: 0,
+                                                            x: -10,
+                                                        }}
+                                                        animate={{
+                                                            opacity: 1,
+                                                            x: 0,
+                                                        }}
+                                                        transition={{
+                                                            duration: 0.2,
+                                                            delay: index * 0.05,
+                                                        }}
+                                                    >
+                                                        <Link
+                                                            href={item.href}
+                                                            className={`
+                                                            flex items-center justify-between p-2.5 sm:p-3 rounded-md 
+                                                            transition-all duration-200 
+                                                            ${
+                                                                pathname ===
+                                                                item.href
+                                                                    ? "bg-primary/10 text-primary font-medium"
+                                                                    : "text-foreground hover:bg-muted"
+                                                            }
+                                                        `}
+                                                            onClick={() =>
+                                                                setIsOpen(false)
+                                                            }
+                                                        >
+                                                            <div className="flex items-center gap-2 sm:gap-3">
+                                                                <span
+                                                                    className={
+                                                                        pathname ===
+                                                                        item.href
+                                                                            ? "text-primary"
+                                                                            : "text-muted-foreground"
+                                                                    }
+                                                                >
+                                                                    {item.icon}
+                                                                </span>
+                                                                <span>
+                                                                    {item.label}
+                                                                </span>
+                                                            </div>
+                                                            <ChevronRight
+                                                                className={`h-4 w-4 transition-transform ${pathname === item.href ? "text-primary opacity-100" : "opacity-60"}`}
+                                                            />
+                                                        </Link>
+                                                    </motion.div>
+                                                ),
+                                            )}
+                                        </div>
+                                    </>
+                                )}
+
                                 <div className="mb-1 ml-1 text-xs uppercase text-muted-foreground font-medium tracking-wide">
                                     Navigation
                                 </div>

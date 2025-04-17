@@ -1,13 +1,21 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import { onAuthStateChanged } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 import { Button } from "@/registry/new-york-v4/ui/button";
 import { signOut } from "firebase/auth";
 import { Skeleton } from "@/registry/new-york-v4/ui/skeleton";
-import { LayoutDashboard, LogOut, Bell, Settings, User } from "lucide-react";
+import {
+    LayoutDashboard,
+    LogOut,
+    Bell,
+    Settings,
+    User,
+    AlertCircle,
+} from "lucide-react";
+import Link from "next/link";
 
 interface User {
     email: string;
@@ -20,8 +28,23 @@ export default function DashboardLayout({
     children: React.ReactNode;
 }) {
     const router = useRouter();
+    const pathname = usePathname();
     const [loading, setLoading] = useState(true);
     const [user, setUser] = useState<User | null>(null);
+
+    // Dashboard navigation items
+    const dashboardNavItems = [
+        {
+            href: "/dashboard",
+            label: "Performance",
+            icon: <LayoutDashboard className="h-5 w-5" />,
+        },
+        {
+            href: "/dashboard/errors",
+            label: "Errors",
+            icon: <AlertCircle className="h-5 w-5" />,
+        },
+    ];
 
     useEffect(() => {
         // Check for mock user in session storage
@@ -99,6 +122,24 @@ export default function DashboardLayout({
                         <LayoutDashboard className="h-6 w-6" />
                         <h1 className="text-xl font-bold">WatchDash</h1>
                     </div>
+
+                    {/* Dashboard navigation tabs */}
+                    <div className="flex-1 flex items-center justify-center gap-6">
+                        {dashboardNavItems.map((item) => (
+                            <Link
+                                key={item.href}
+                                href={item.href}
+                                className={`
+                                    flex items-center gap-2 px-3 py-2 rounded-md transition-colors
+                                    ${pathname === item.href ? "bg-[#0091D5] text-white font-medium" : "text-white/80 hover:text-white hover:bg-[#0091D5]/30"}
+                                `}
+                            >
+                                {item.icon}
+                                <span>{item.label}</span>
+                            </Link>
+                        ))}
+                    </div>
+
                     <nav className="flex items-center gap-4">
                         <Button
                             variant="ghost"
