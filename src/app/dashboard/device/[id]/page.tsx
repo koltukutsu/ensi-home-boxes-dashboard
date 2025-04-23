@@ -171,7 +171,7 @@ export default function DeviceDetailPage() {
             const logsQuery = query(
                 deviceDocRef,
                 orderBy("timestamp", "desc"),
-                limit(50) // Increased limit to get more data for analytics
+                limit(250) // Increased to 250 as requested
             );
             
             const logsSnapshot = await getDocs(logsQuery);
@@ -289,12 +289,25 @@ export default function DeviceDetailPage() {
         });
     }, [filteredLogs, sortField, sortDirection]);
     
+    // Format date for chart display
+    const formatChartDate = (dateStr: string) => {
+        const date = new Date(dateStr);
+        return date.toLocaleString(undefined, {
+            month: 'numeric',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+    };
+
     // Prepare chart data for CPU usage over time
     const cpuChartData = useMemo(() => {
+        // Sort all logs chronologically
         return [...historicalLogs]
             .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
             .map(log => ({
-                name: new Date(log.timestamp).toLocaleDateString(),
+                name: formatChartDate(log.timestamp),
+                dateTime: log.timestamp, // Store the full date for tooltip
                 value: log.system_cpu_percent || 0
             }));
     }, [historicalLogs]);
@@ -304,7 +317,8 @@ export default function DeviceDetailPage() {
         return [...historicalLogs]
             .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
             .map(log => ({
-                name: new Date(log.timestamp).toLocaleDateString(),
+                name: formatChartDate(log.timestamp),
+                dateTime: log.timestamp, // Store the full date for tooltip
                 value: log.system_memory_percent || 0
             }));
     }, [historicalLogs]);
@@ -816,20 +830,28 @@ export default function DeviceDetailPage() {
                                                         dataKey="name" 
                                                         tick={{ fontSize: 10 }}
                                                         tickFormatter={(value) => {
-                                                            // Show less X labels for better readability
-                                                            return value.split('/').slice(0, 2).join('/');
+                                                            // Show more concise labels on axis
+                                                            return value.split(',')[0]; // Only show date part on axis
                                                         }}
                                                     />
                                                     <YAxis domain={[0, 100]} />
                                                     <Tooltip 
                                                         formatter={(value) => [`${value}%`, 'CPU Usage']}
+                                                        labelFormatter={(label, items) => {
+                                                            // Get the full datetime from the item
+                                                            if (items && items.length > 0) {
+                                                                const item = items[0].payload;
+                                                                return new Date(item.dateTime).toLocaleString();
+                                                            }
+                                                            return label;
+                                                        }}
                                                     />
                                                     <Line 
                                                         type="monotone" 
                                                         dataKey="value" 
                                                         stroke="#0091D5" 
                                                         strokeWidth={2}
-                                                        dot={{ r: 2 }}
+                                                        dot={cpuChartData.length > 100 ? false : { r: 2 }}
                                                         activeDot={{ r: 5 }}
                                                     />
                                                 </LineChartComponent>
@@ -857,20 +879,28 @@ export default function DeviceDetailPage() {
                                                         dataKey="name" 
                                                         tick={{ fontSize: 10 }}
                                                         tickFormatter={(value) => {
-                                                            // Show less X labels for better readability
-                                                            return value.split('/').slice(0, 2).join('/');
+                                                            // Show more concise labels on axis
+                                                            return value.split(',')[0]; // Only show date part on axis
                                                         }}
                                                     />
                                                     <YAxis domain={[0, 100]} />
                                                     <Tooltip 
                                                         formatter={(value) => [`${value}%`, 'Memory Usage']}
+                                                        labelFormatter={(label, items) => {
+                                                            // Get the full datetime from the item
+                                                            if (items && items.length > 0) {
+                                                                const item = items[0].payload;
+                                                                return new Date(item.dateTime).toLocaleString();
+                                                            }
+                                                            return label;
+                                                        }}
                                                     />
                                                     <Line 
                                                         type="monotone" 
                                                         dataKey="value" 
                                                         stroke="#7B3C9D" 
                                                         strokeWidth={2}
-                                                        dot={{ r: 2 }}
+                                                        dot={memoryChartData.length > 100 ? false : { r: 2 }}
                                                         activeDot={{ r: 5 }}
                                                     />
                                                 </LineChartComponent>
@@ -936,8 +966,11 @@ export default function DeviceDetailPage() {
                                         <CardContent className="p-4">
                                             <div className="text-sm text-muted-foreground">Avg CPU Usage</div>
                                             <div className="text-2xl font-bold text-[#1C4E80]">
-                                                {historicalLogs.reduce((sum, log) => sum + (log.system_cpu_percent || 0), 0) / 
-                                                  (historicalLogs.length || 1)}%
+                                                {(historicalLogs.reduce((sum, log) => sum + (log.system_cpu_percent || 0), 0) / 
+                                                  (historicalLogs.length || 1)).toFixed(1)}%
+                                            </div>
+                                            <div className="text-xs text-muted-foreground mt-1">
+                                                Based on {historicalLogs.length} data points
                                             </div>
                                         </CardContent>
                                     </Card>
@@ -945,8 +978,11 @@ export default function DeviceDetailPage() {
                                         <CardContent className="p-4">
                                             <div className="text-sm text-muted-foreground">Avg Memory Usage</div>
                                             <div className="text-2xl font-bold text-[#7B3C9D]">
-                                                {historicalLogs.reduce((sum, log) => sum + (log.system_memory_percent || 0), 0) / 
-                                                  (historicalLogs.length || 1)}%
+                                                {(historicalLogs.reduce((sum, log) => sum + (log.system_memory_percent || 0), 0) / 
+                                                  (historicalLogs.length || 1)).toFixed(1)}%
+                                            </div>
+                                            <div className="text-xs text-muted-foreground mt-1">
+                                                Based on {historicalLogs.length} data points
                                             </div>
                                         </CardContent>
                                     </Card>
