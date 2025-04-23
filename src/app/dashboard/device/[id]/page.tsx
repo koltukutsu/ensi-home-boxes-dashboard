@@ -111,6 +111,18 @@ export default function DeviceDetailPage() {
     const [searchQuery, setSearchQuery] = useState("");
     const [sortField, setSortField] = useState<string>("timestamp");
     const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
+    
+    // Device table sorting state
+    const [deviceSortField, setDeviceSortField] = useState<string>("name");
+    const [deviceSortDirection, setDeviceSortDirection] = useState<"asc" | "desc">("asc");
+    
+    // Connection types sorting state
+    const [connectionSortField, setConnectionSortField] = useState<string>("type");
+    const [connectionSortDirection, setConnectionSortDirection] = useState<"asc" | "desc">("asc");
+    
+    // Add-ons sorting state
+    const [addonSortField, setAddonSortField] = useState<string>("name");
+    const [addonSortDirection, setAddonSortDirection] = useState<"asc" | "desc">("asc");
 
     useEffect(() => {
         async function fetchData() {
@@ -361,6 +373,194 @@ export default function DeviceDetailPage() {
     const handleSelectLog = (log: HomeAssistantSnapshot) => {
         setSelectedLog(log);
         setDialogOpen(false);
+    };
+
+    // Sort devices based on selected field and direction
+    const sortedDevices = useMemo(() => {
+        return [...devices].sort((a, b) => {
+            let aValue: any;
+            let bValue: any;
+            
+            switch (deviceSortField) {
+                case "name":
+                    aValue = a.name?.toLowerCase() || "";
+                    bValue = b.name?.toLowerCase() || "";
+                    break;
+                case "manufacturer":
+                    aValue = a.manufacturer?.toLowerCase() || "";
+                    bValue = b.manufacturer?.toLowerCase() || "";
+                    break;
+                case "model":
+                    aValue = a.model?.toLowerCase() || "";
+                    bValue = b.model?.toLowerCase() || "";
+                    break;
+                case "entities":
+                    aValue = a.entity_count || 0;
+                    bValue = b.entity_count || 0;
+                    break;
+                case "status":
+                    aValue = a.disabled ? 1 : 0;
+                    bValue = b.disabled ? 1 : 0;
+                    break;
+                default:
+                    aValue = a.name?.toLowerCase() || "";
+                    bValue = b.name?.toLowerCase() || "";
+            }
+            
+            // For string comparisons
+            if (typeof aValue === 'string' && typeof bValue === 'string') {
+                return deviceSortDirection === "asc" 
+                    ? aValue.localeCompare(bValue)
+                    : bValue.localeCompare(aValue);
+            }
+            
+            // For numeric comparisons
+            return deviceSortDirection === "asc" 
+                ? aValue - bValue 
+                : bValue - aValue;
+        });
+    }, [devices, deviceSortField, deviceSortDirection]);
+    
+    // Handle column header click for device table
+    const handleDeviceSort = (field: string) => {
+        if (deviceSortField === field) {
+            // Toggle direction if clicking the same field
+            setDeviceSortDirection(deviceSortDirection === "asc" ? "desc" : "asc");
+        } else {
+            // Set new field and default to ascending
+            setDeviceSortField(field);
+            setDeviceSortDirection("asc");
+        }
+    };
+    
+    // Helper to render sort indicators
+    const renderSortIndicator = (field: string) => {
+        if (deviceSortField !== field) return null;
+        
+        return deviceSortDirection === "asc" 
+            ? <span className="ml-1">↑</span> 
+            : <span className="ml-1">↓</span>;
+    };
+
+    // Handle connection type sort
+    const handleConnectionSort = (field: string) => {
+        if (connectionSortField === field) {
+            // Toggle direction if clicking the same field
+            setConnectionSortDirection(connectionSortDirection === "asc" ? "desc" : "asc");
+        } else {
+            // Set new field and default to ascending
+            setConnectionSortField(field);
+            setConnectionSortDirection("asc");
+        }
+    };
+    
+    // Helper to render connection sort indicators
+    const renderConnectionSortIndicator = (field: string) => {
+        if (connectionSortField !== field) return null;
+        
+        return connectionSortDirection === "asc" 
+            ? <span className="ml-1">↑</span> 
+            : <span className="ml-1">↓</span>;
+    };
+    
+    // Function to sort connection types
+    const getSortedConnectionTypes = (devices: Device[]) => {
+        const connectionTypes = new Map();
+        
+        // Count connection types
+        devices.forEach((device) => {
+            if (device.connections && device.connections.length > 0) {
+                device.connections.forEach((conn) => {
+                    const type = conn[0] || "unknown";
+                    connectionTypes.set(type, (connectionTypes.get(type) || 0) + 1);
+                });
+            }
+        });
+        
+        // Convert to array for sorting
+        const typesArray = Array.from(connectionTypes.entries()).map(([type, count]) => ({
+            type,
+            count: count as number
+        }));
+        
+        // Sort based on selected field and direction
+        return typesArray.sort((a, b) => {
+            if (connectionSortField === "type") {
+                return connectionSortDirection === "asc"
+                    ? a.type.localeCompare(b.type)
+                    : b.type.localeCompare(a.type);
+            } else {
+                return connectionSortDirection === "asc"
+                    ? a.count - b.count
+                    : b.count - a.count;
+            }
+        });
+    };
+
+    // Handle addon sort
+    const handleAddonSort = (field: string) => {
+        if (addonSortField === field) {
+            // Toggle direction if clicking the same field
+            setAddonSortDirection(addonSortDirection === "asc" ? "desc" : "asc");
+        } else {
+            // Set new field and default to ascending
+            setAddonSortField(field);
+            setAddonSortDirection("asc");
+        }
+    };
+    
+    // Helper to render addon sort indicators
+    const renderAddonSortIndicator = (field: string) => {
+        if (addonSortField !== field) return null;
+        
+        return addonSortDirection === "asc" 
+            ? <span className="ml-1">↑</span> 
+            : <span className="ml-1">↓</span>;
+    };
+    
+    // Function to sort add-ons
+    const getSortedAddons = (addons: any[]) => {
+        if (!addons) return [];
+        
+        return [...addons].sort((a, b) => {
+            let aValue: any;
+            let bValue: any;
+            
+            switch (addonSortField) {
+                case "name":
+                    aValue = a.name?.toLowerCase() || "";
+                    bValue = b.name?.toLowerCase() || "";
+                    break;
+                case "version":
+                    aValue = a.version || "";
+                    bValue = b.version || "";
+                    break;
+                case "cpu":
+                    aValue = a.cpu_percent || 0;
+                    bValue = b.cpu_percent || 0;
+                    break;
+                case "memory":
+                    // Sort by memory usage or 0 if not available
+                    aValue = a.memory_usage || 0;
+                    bValue = b.memory_usage || 0;
+                    break;
+                default:
+                    aValue = a.name?.toLowerCase() || "";
+                    bValue = b.name?.toLowerCase() || "";
+            }
+            
+            // For string comparisons
+            if (typeof aValue === 'string' && typeof bValue === 'string') {
+                return addonSortDirection === "asc" 
+                    ? aValue.localeCompare(bValue)
+                    : bValue.localeCompare(aValue);
+            }
+            
+            // For numeric comparisons
+            return addonSortDirection === "asc" 
+                ? aValue - bValue 
+                : bValue - aValue;
+        });
     };
 
     if (loading) {
@@ -1091,17 +1291,40 @@ export default function DeviceDetailPage() {
                                     <Table>
                                         <TableHeader>
                                             <TableRow className="bg-[#F1F1F1] dark:bg-[#202020]">
-                                                <TableHead>Name</TableHead>
-                                                <TableHead>
-                                                    Manufacturer
+                                                <TableHead 
+                                                    className="cursor-pointer hover:bg-[#E5E5E5] dark:hover:bg-[#2A2A2A] transition-colors"
+                                                    onClick={() => handleDeviceSort("name")}
+                                                >
+                                                    Name {renderSortIndicator("name")}
                                                 </TableHead>
-                                                <TableHead>Model</TableHead>
-                                                <TableHead>Entities</TableHead>
-                                                <TableHead>Status</TableHead>
+                                                <TableHead 
+                                                    className="cursor-pointer hover:bg-[#E5E5E5] dark:hover:bg-[#2A2A2A] transition-colors"
+                                                    onClick={() => handleDeviceSort("manufacturer")}
+                                                >
+                                                    Manufacturer {renderSortIndicator("manufacturer")}
+                                                </TableHead>
+                                                <TableHead 
+                                                    className="cursor-pointer hover:bg-[#E5E5E5] dark:hover:bg-[#2A2A2A] transition-colors"
+                                                    onClick={() => handleDeviceSort("model")}
+                                                >
+                                                    Model {renderSortIndicator("model")}
+                                                </TableHead>
+                                                <TableHead 
+                                                    className="cursor-pointer hover:bg-[#E5E5E5] dark:hover:bg-[#2A2A2A] transition-colors"
+                                                    onClick={() => handleDeviceSort("entities")}
+                                                >
+                                                    Entities {renderSortIndicator("entities")}
+                                                </TableHead>
+                                                <TableHead 
+                                                    className="cursor-pointer hover:bg-[#E5E5E5] dark:hover:bg-[#2A2A2A] transition-colors"
+                                                    onClick={() => handleDeviceSort("status")}
+                                                >
+                                                    Status {renderSortIndicator("status")}
+                                                </TableHead>
                                             </TableRow>
                                         </TableHeader>
                                         <TableBody>
-                                            {devices.map((device) => (
+                                            {sortedDevices.map((device) => (
                                                 <TableRow
                                                     key={device.id}
                                                     className="hover:bg-[#A5D8DD]/10 dark:hover:bg-[#1C4E80]/10"
@@ -1174,14 +1397,34 @@ export default function DeviceDetailPage() {
                                     <Table>
                                         <TableHeader>
                                             <TableRow className="bg-[#F1F1F1] dark:bg-[#202020]">
-                                                <TableHead>Name</TableHead>
-                                                <TableHead>Version</TableHead>
-                                                <TableHead>CPU</TableHead>
-                                                <TableHead>Memory</TableHead>
+                                                <TableHead 
+                                                    className="cursor-pointer hover:bg-[#E5E5E5] dark:hover:bg-[#2A2A2A] transition-colors"
+                                                    onClick={() => handleAddonSort("name")}
+                                                >
+                                                    Name {renderAddonSortIndicator("name")}
+                                                </TableHead>
+                                                <TableHead 
+                                                    className="cursor-pointer hover:bg-[#E5E5E5] dark:hover:bg-[#2A2A2A] transition-colors"
+                                                    onClick={() => handleAddonSort("version")}
+                                                >
+                                                    Version {renderAddonSortIndicator("version")}
+                                                </TableHead>
+                                                <TableHead 
+                                                    className="cursor-pointer hover:bg-[#E5E5E5] dark:hover:bg-[#2A2A2A] transition-colors"
+                                                    onClick={() => handleAddonSort("cpu")}
+                                                >
+                                                    CPU {renderAddonSortIndicator("cpu")}
+                                                </TableHead>
+                                                <TableHead 
+                                                    className="cursor-pointer hover:bg-[#E5E5E5] dark:hover:bg-[#2A2A2A] transition-colors"
+                                                    onClick={() => handleAddonSort("memory")}
+                                                >
+                                                    Memory {renderAddonSortIndicator("memory")}
+                                                </TableHead>
                                             </TableRow>
                                         </TableHeader>
                                         <TableBody>
-                                            {snapshot.supervisor_addons.map(
+                                            {getSortedAddons(snapshot.supervisor_addons).map(
                                                 (addon, index) => (
                                                     <TableRow
                                                         key={addon.slug}
@@ -1558,65 +1801,49 @@ export default function DeviceDetailPage() {
                             </div>
 
                             <div className="mt-6">
-                                <h3 className="text-lg font-medium mb-3">
-                                    Device Connection Types
+                                <h3 className="text-lg font-medium mb-3 flex items-center justify-between">
+                                    <span>Device Connection Types</span>
+                                    <div className="flex gap-4 text-sm">
+                                        <button 
+                                            className={`flex items-center ${connectionSortField === "type" ? "text-[#1C4E80] font-medium" : "text-muted-foreground"}`}
+                                            onClick={() => handleConnectionSort("type")}
+                                        >
+                                            Sort by Type {renderConnectionSortIndicator("type")}
+                                        </button>
+                                        <button 
+                                            className={`flex items-center ${connectionSortField === "count" ? "text-[#1C4E80] font-medium" : "text-muted-foreground"}`}
+                                            onClick={() => handleConnectionSort("count")}
+                                        >
+                                            Sort by Count {renderConnectionSortIndicator("count")}
+                                        </button>
+                                    </div>
                                 </h3>
                                 <div className="rounded-md border p-4 bg-card">
                                     {devices.length > 0 ? (
                                         <div className="space-y-3">
-                                            {(() => {
-                                                // Analyze connection types
-                                                const connectionTypes =
-                                                    new Map();
-
-                                                devices.forEach((device) => {
-                                                    if (
-                                                        device.connections &&
-                                                        device.connections
-                                                            .length > 0
-                                                    ) {
-                                                        device.connections.forEach(
-                                                            (conn) => {
-                                                                const type =
-                                                                    conn[0] ||
-                                                                    "unknown";
-                                                                connectionTypes.set(
-                                                                    type,
-                                                                    (connectionTypes.get(
-                                                                        type,
-                                                                    ) || 0) + 1,
-                                                                );
-                                                            },
-                                                        );
-                                                    }
-                                                });
-
-                                                return Array.from(
-                                                    connectionTypes.entries(),
-                                                ).map(([type, count]) => (
-                                                    <div
-                                                        key={type}
-                                                        className="flex items-center"
-                                                    >
-                                                        <div className="w-24 text-sm">
-                                                            {type}:
-                                                        </div>
-                                                        <div className="flex-1 ml-2">
-                                                            <div className="h-2 bg-muted rounded-full overflow-hidden">
-                                                                <div
-                                                                    className="h-full bg-[#0091D5] rounded-full"
-                                                                    style={{
-                                                                        width: `${((count as number) / devices.length) * 100}%`,
-                                                                    }}
-                                                                ></div>
-                                                            </div>
-                                                        </div>
-                                                        <div className="ml-2 text-sm">
-                                                            {count}
+                                            {getSortedConnectionTypes(devices).map(({ type, count }) => (
+                                                <div
+                                                    key={type}
+                                                    className="flex items-center"
+                                                >
+                                                    <div className="w-24 text-sm">
+                                                        {type}:
+                                                    </div>
+                                                    <div className="flex-1 ml-2">
+                                                        <div className="h-2 bg-muted rounded-full overflow-hidden">
+                                                            <div
+                                                                className="h-full bg-[#0091D5] rounded-full"
+                                                                style={{
+                                                                    width: `${(count / devices.length) * 100}%`,
+                                                                }}
+                                                            ></div>
                                                         </div>
                                                     </div>
-                                                ));
-                                            })()}
+                                                    <div className="ml-2 text-sm">
+                                                        {count}
+                                                    </div>
+                                                </div>
+                                            ))}
                                         </div>
                                     ) : (
                                         <div className="text-center text-muted-foreground">
