@@ -59,6 +59,16 @@ export interface ChatMessage {
 }
 
 /**
+ * Interface for house data from Firestore
+ */
+export interface HouseData {
+    adminId: string;
+    allowedUsers: string[];
+    createdAt: string;
+    houseName: string;
+}
+
+/**
  * Get the content ID from a content item
  */
 export function getContentId(item: ContentItem): string {
@@ -796,5 +806,50 @@ export async function testFirestoreConnection(): Promise<{
             success: false,
             message: error instanceof Error ? error.message : String(error),
         };
+    }
+}
+
+/**
+ * Get house data from Firestore by house ID or name
+ * 
+ * @param houseIdOrName The ID or name of the house to retrieve
+ * @returns The house data or null if not found
+ */
+export async function getHouseData(houseIdOrName: string): Promise<HouseData | null> {
+    try {
+        // Try to get document with the provided ID first
+        const houseRef = doc(db, 'houses', houseIdOrName);
+        const houseDoc = await getDoc(houseRef);
+        
+        if (houseDoc.exists()) {
+            const data = houseDoc.data();
+            return {
+                adminId: data.adminId?.path || '',
+                allowedUsers: data.allowedUsers || [],
+                createdAt: data.createdAt || '',
+                houseName: data.houseName || '',
+            };
+        }
+        
+        // If not found by ID, try to query by houseName
+        const housesCollection = collection(db, 'houses');
+        const q = query(housesCollection, where('houseName', '==', houseIdOrName));
+        const querySnapshot = await getDocs(q);
+        
+        if (!querySnapshot.empty) {
+            const doc = querySnapshot.docs[0];
+            const data = doc.data();
+            return {
+                adminId: data.adminId?.path || '',
+                allowedUsers: data.allowedUsers || [],
+                createdAt: data.createdAt || '',
+                houseName: data.houseName || '',
+            };
+        }
+        
+        return null;
+    } catch (error) {
+        console.error('Error getting house data:', error);
+        return null;
     }
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
     Table,
@@ -28,9 +28,11 @@ import {
     Cpu,
     HardDrive,
     MemoryStick,
+    Home,
 } from "lucide-react";
 import type { HomeAssistantSnapshot } from "@/types/connectivity";
 import { ConnectivityService } from "@/lib/connectivity-service";
+import { getHouseData, HouseData } from "@/lib/firebase-utils";
 
 interface SnapshotListProps {
     snapshots: HomeAssistantSnapshot[];
@@ -39,14 +41,42 @@ interface SnapshotListProps {
 export function SnapshotList({ snapshots }: SnapshotListProps) {
     const router = useRouter();
     const [searchQuery, setSearchQuery] = useState("");
+    const [houseData, setHouseData] = useState<{[deviceId: string]: HouseData | null}>({});
+
+    useEffect(() => {
+        // Fetch house data for all snapshots
+        const fetchHouseDataForDevices = async () => {
+            const data: {[deviceId: string]: HouseData | null} = {};
+            
+            for (const snapshot of snapshots) {
+                if (snapshot.deviceId) {
+                    try {
+                        const house = await getHouseData(snapshot.deviceId);
+                        data[snapshot.deviceId] = house;
+                    } catch (error) {
+                        console.error(`Error fetching house data for ${snapshot.deviceId}:`, error);
+                        data[snapshot.deviceId] = null;
+                    }
+                }
+            }
+            
+            setHouseData(data);
+        };
+        
+        fetchHouseDataForDevices();
+    }, [snapshots]);
 
     const filteredSnapshots = snapshots.filter((snapshot) => {
         // Get device ID or use timestamp as fallback
         const deviceId = snapshot.deviceId || "unknown";
+        
+        // Get house name if available
+        const houseName = houseData[deviceId]?.houseName || "";
 
         // Build searchable text from multiple fields
         const searchableText = [
             deviceId,
+            houseName,
             snapshot.homeassistant_homeassistant_version,
             snapshot.timestamp,
         ]
@@ -104,6 +134,7 @@ export function SnapshotList({ snapshots }: SnapshotListProps) {
                         <TableHeader>
                             <TableRow className="bg-[#F1F1F1] dark:bg-[#202020]">
                                 <TableHead>Identifier</TableHead>
+                                <TableHead>House Name</TableHead>
                                 <TableHead>Version</TableHead>
                                 <TableHead>CPU</TableHead>
                                 <TableHead>Memory</TableHead>
@@ -130,6 +161,16 @@ export function SnapshotList({ snapshots }: SnapshotListProps) {
                                                 {snapshot.deviceId ||
                                                     "Unknown Device"}
                                             </div>
+                                        </TableCell>
+                                        <TableCell>
+                                            {snapshot.deviceId && houseData[snapshot.deviceId] ? (
+                                                <div className="flex items-center gap-2">
+                                                    <Home className="h-4 w-4 text-[#1C4E80]" />
+                                                    {houseData[snapshot.deviceId]?.houseName || "N/A"}
+                                                </div>
+                                            ) : (
+                                                "N/A"
+                                            )}
                                         </TableCell>
                                         <TableCell>
                                             {snapshot.homeassistant_homeassistant_version ||
@@ -232,7 +273,7 @@ export function SnapshotList({ snapshots }: SnapshotListProps) {
                             ) : (
                                 <TableRow>
                                     <TableCell
-                                        colSpan={6}
+                                        colSpan={8}
                                         className="h-24 text-center"
                                     >
                                         {searchQuery
